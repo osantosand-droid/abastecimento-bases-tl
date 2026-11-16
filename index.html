@@ -482,130 +482,29 @@ Stella Artois (Zerado)
     import { getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // =========================================================================
-    // 1. CONFIGURAÇÃO E ESTADO GLOBAL
+    // 2. INICIALIZAÇÃO DO FIREBASE (CONFIGURAÇÃO EXPLÍCITA PARA GITHUB PAGES)
     // =========================================================================
-    const DEFAULT_MUNICIPALITIES = ['NON', 'Autazes', 'Barcelos', 'Careiro', 'Manaquiri', 'SGC'];
-    const DEFAULT_ANALYST_PASSWORD = 'TL2026';
-    
-    let app = null;
-    let auth = null;
-    let db = null;
-    let currentUser = null;
-    let appId = typeof __app_id !== 'undefined' ? __app_id : 'abastecimento-am-app';
-    let isFirebaseReady = false;
-    let pendingProtectedCallback = null;
-
-    // Estado reativo em memória
-    const state = {
-      activeTab: 'bases',
-      selectedBaseMuni: 'NON',
-      analystFilterMuni: 'ALL',
-      presentationMode: 'grid', // 'grid' | 'slide'
-      currentSlideIdx: 0,
-      municipalities: [...DEFAULT_MUNICIPALITIES],
-      items: [] // { id, municipality, name, reqQty, reqUnit, tag, status, sentQty, sentUnit, days, substitute, createdAt }
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyBvuqOt6995VLVa--5vvzTbv1xboKgFm-g",
+      authDomain: "abastecimento-bases-tl.firebaseapp.com",
+      projectId: "abastecimento-bases-tl",
+      storageBucket: "abastecimento-bases-tl.firebasestorage.app",
+      messagingSenderId: "759669173664",
+      appId: "1:759669173664:web:3cd68dd9df5e8ccbce08c5"
     };
 
-    // =========================================================================
-    // 1.1 CONTROLE DE SENHA E SESSÃO DO ANALISTA
-    // =========================================================================
-    function getActiveAnalystPassword() {
-      return sessionStorage.getItem('tl_analyst_custom_pass') || DEFAULT_ANALYST_PASSWORD;
-    }
-
-    function isAnalystUnlocked() {
-      return sessionStorage.getItem('tl_analyst_authenticated') === 'true';
-    }
-
-    function updateLockUI() {
-      const unlocked = isAnalystUnlocked();
-      const icon = document.getElementById('analyst-tab-lock-icon');
-      if (icon) {
-        icon.className = unlocked
-          ? 'fa-solid fa-unlock text-emerald-400'
-          : 'fa-solid fa-lock text-amber-400';
-      }
-      const passDisplay = document.getElementById('current-password-display');
-      if (passDisplay) {
-        passDisplay.textContent = getActiveAnalystPassword();
-      }
-    }
-
-    window.requestAnalystAction = function(actionCallback, reasonText = 'Digite a senha para desbloquear esta ação') {
-      if (isAnalystUnlocked()) {
-        actionCallback();
-        return;
-      }
-      pendingProtectedCallback = actionCallback;
-      document.getElementById('auth-modal-subtitle').textContent = reasonText;
-      document.getElementById('auth-error-msg').classList.add('hidden');
-      const input = document.getElementById('auth-password-input');
-      input.value = '';
-      const modal = document.getElementById('auth-modal');
-      modal.classList.remove('hidden');
-      modal.classList.add('flex');
-      setTimeout(() => input.focus(), 50);
-    };
-
-    window.closeAuthModal = function() {
-      const modal = document.getElementById('auth-modal');
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
-      pendingProtectedCallback = null;
-    };
-
-    window.submitAnalystPassword = function(e) {
-      e.preventDefault();
-      const input = document.getElementById('auth-password-input');
-      const typed = input.value.trim();
-      if (typed === getActiveAnalystPassword()) {
-        sessionStorage.setItem('tl_analyst_authenticated', 'true');
-        updateLockUI();
-        const cb = pendingProtectedCallback;
-        closeAuthModal();
-        showToast('Acesso de Analista liberado!', 'success');
-        if (typeof cb === 'function') cb();
-      } else {
-        document.getElementById('auth-error-msg').classList.remove('hidden');
-        input.select();
-      }
-    };
-
-    window.lockAnalystSession = function() {
-      sessionStorage.removeItem('tl_analyst_authenticated');
-      updateLockUI();
-      showToast('Aba do Analista bloqueada.', 'info');
-      switchTab('bases');
-    };
-
-    window.changeSessionPassword = function() {
-      const input = document.getElementById('new-analyst-pass-input');
-      const newPass = input.value.trim();
-      if (newPass.length < 3) {
-        showToast('Digite uma senha com pelo menos 3 caracteres.', 'error');
-        return;
-      }
-      sessionStorage.setItem('tl_analyst_custom_pass', newPass);
-      input.value = '';
-      updateLockUI();
-      showToast(`Senha da sessão atualizada para "${newPass}"!`);
-    };
-
-    // =========================================================================
-    // 2. INICIALIZAÇÃO DO FIREBASE (AUTH -> FIRESTORE SNAPSHOT)
-    // =========================================================================
     async function initFirebase() {
       const badge = document.getElementById('sync-status-badge');
       try {
-        if (typeof __firebase_config === 'undefined' || !__firebase_config) {
-          throw new Error('Configuração do Firebase ausente no ambiente.');
-        }
-        const firebaseConfig = JSON.parse(__firebase_config);
-        app = initializeApp(firebaseConfig);
+        const activeConfig = (typeof __firebase_config !== 'undefined' && __firebase_config)
+          ? JSON.parse(__firebase_config)
+          : FIREBASE_CONFIG;
+
+        app = initializeApp(activeConfig);
         auth = getAuth(app);
         db = getFirestore(app);
 
-        // Regra 3: Autenticar ANTES de qualquer operação no Firestore
+        // Autenticação obrigatória antes de ler/gravar no Firestore
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           await signInWithCustomToken(auth, __initial_auth_token);
         } else {
@@ -614,11 +513,11 @@ Stella Artois (Zerado)
 
         currentUser = auth.currentUser;
         if (!currentUser) {
-          throw new Error('Falha na autenticação.');
+          throw new Error('Falha na autenticação anônima.');
         }
 
         isFirebaseReady = true;
-        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> Ao Vivo (Sincronizado)`;
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> Sincronizado em Tempo Real`;
         badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-700/60';
 
         startRealtimeListeners();
@@ -631,12 +530,12 @@ Stella Artois (Zerado)
     }
 
     function getItemsCollectionRef() {
-      // Regra 1: Caminho estrito /artifacts/{appId}/public/data/{collectionName}
-      return collection(db, 'artifacts', appId, 'public', 'data', 'supply_items');
+      // Caminho fixo compartilhado entre todos os dispositivos e bases
+      return collection(db, 'abastecimento_bases_tl', 'geral', 'itens');
     }
 
     function getMunisCollectionRef() {
-      return collection(db, 'artifacts', appId, 'public', 'data', 'supply_municipalities');
+      return collection(db, 'abastecimento_bases_tl', 'geral', 'municipios');
     }
 
     function startRealtimeListeners() {
@@ -722,7 +621,7 @@ Stella Artois (Zerado)
 
     async function updateSupplyItem(id, updates) {
       if (isFirebaseReady && currentUser) {
-        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'supply_items', id);
+        const docRef = doc(db, 'abastecimento_bases_tl', 'geral', 'itens', id);
         await updateDoc(docRef, updates);
       } else {
         const idx = state.items.findIndex((i) => i.id === id);
@@ -735,7 +634,7 @@ Stella Artois (Zerado)
 
     async function deleteSupplyItem(id) {
       if (isFirebaseReady && currentUser) {
-        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'supply_items', id);
+        const docRef = doc(db, 'abastecimento_bases_tl', 'geral', 'itens', id);
         await deleteDoc(docRef);
       } else {
         state.items = state.items.filter((i) => i.id !== id);
