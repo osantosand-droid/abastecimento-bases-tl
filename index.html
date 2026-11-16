@@ -77,39 +77,48 @@
   <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
     <!-- ===================================================================== -->
-    <!-- ABA 1: VISÃO DAS BASES (SOLICITAÇÃO DE REPOSIÇÃO)                     -->
+    <!-- ABA 1: VISÃO DAS BASES (RASCUNHO LOCAL + ENVIO EM LOTE)               -->
     <!-- ===================================================================== -->
     <section id="view-bases" class="space-y-6">
-      <!-- Seletor de Base + Ações Rápidas -->
+      <!-- Seletor de Base + Identificação do Responsável -->
       <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-4">
-        <div class="flex flex-wrap items-center gap-3">
-          <label for="baseSelect" class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
-            <span class="text-sky-600">📍</span> Base / Município:
-          </label>
-          <select id="baseSelect" onchange="changeSelectedBase(this.value)" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm font-bold rounded-xl focus:ring-sky-500 focus:border-sky-500 px-4 py-2.5 min-w-[190px]">
-          </select>
-          <button onclick="openNewCityModal()" class="px-3 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition">
-            + Novo Município
-          </button>
+        <div class="flex flex-wrap items-center gap-4">
+          <div class="flex items-center gap-2">
+            <label for="baseSelect" class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+              <span class="text-sky-600">📍</span> Base:
+            </label>
+            <select id="baseSelect" onchange="changeSelectedBase(this.value)" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm font-bold rounded-xl focus:ring-sky-500 focus:border-sky-500 px-3.5 py-2 min-w-[160px]">
+            </select>
+            <button onclick="openNewCityModal()" class="px-2.5 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition" title="Adicionar novo município">
+              + Base
+            </button>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <label for="requesterNameInput" class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+              <span class="text-indigo-600">👤</span> Responsável:
+            </label>
+            <input type="text" id="requesterNameInput" oninput="saveRequesterName(this.value)" placeholder="Seu nome (ex: Carlos)" class="bg-slate-50 border border-slate-300 text-slate-900 text-sm font-semibold rounded-xl focus:ring-sky-500 focus:border-sky-500 px-3.5 py-2 w-44 sm:w-52 outline-none">
+          </div>
         </div>
 
         <div class="flex items-center gap-2">
           <button onclick="protectedAction('seedInitialData')" class="px-3.5 py-2 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition flex items-center gap-1.5">
-            <span>🪄</span> Importar Lista Rápida (Carga Inicial)
+            <span>🪄</span> Importar Carga Inicial
           </button>
         </div>
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <!-- Coluna Esquerda: Formulário de Lançamento -->
-        <div class="lg:col-span-5 space-y-6">
-          <!-- Adicionar Item Único -->
+        <!-- Coluna Esquerda: Montagem do Rascunho Local -->
+        <div class="lg:col-span-6 space-y-6">
+          <!-- Adicionar Item ao Rascunho -->
           <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
             <h2 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
-              <span class="w-7 h-7 rounded-lg bg-sky-100 text-sky-600 flex items-center justify-center text-sm font-extrabold">+</span>
-              Adicionar Item Individual
+              <span class="w-7 h-7 rounded-lg bg-sky-100 text-sky-600 flex items-center justify-center text-sm font-extrabold">1</span>
+              Montar Lista de Pedido (Rascunho Local)
             </h2>
-            <form id="singleItemForm" onsubmit="handleAddSingleItem(event)" class="space-y-4">
+            <form id="singleItemForm" onsubmit="handleAddDraftItem(event)" class="space-y-4">
               <div>
                 <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Produto / SKU *</label>
                 <input type="text" id="itemNameInput" required placeholder="Ex: Skol 1L, Pepsi 2L, Água 500ml..." class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none">
@@ -139,35 +148,59 @@
                 </div>
               </div>
 
-              <button type="submit" class="w-full py-3 bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm rounded-xl shadow-sm transition flex items-center justify-center gap-2">
-                <span>🚀</span> Lançar Pedido na Base
+              <button type="submit" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-sm rounded-xl shadow-sm transition flex items-center justify-center gap-2">
+                <span>➕</span> Adicionar à Lista Abaixo
               </button>
             </form>
+
+            <!-- Colar Lista Rápida (Vai para o Rascunho) -->
+            <details class="mt-4 pt-4 border-t border-slate-100 group">
+              <summary class="text-xs font-bold text-sky-700 cursor-pointer hover:text-sky-800 flex items-center gap-1.5 select-none">
+                <span>📋 Colar vários itens de uma vez (texto/WhatsApp)</span>
+              </summary>
+              <div class="mt-3 space-y-2">
+                <p class="text-[11px] text-slate-500">Cole uma linha por item (ex: <code class="bg-slate-100 px-1 rounded">2 plt Skol 1L</code>, <code class="bg-slate-100 px-1 rounded">Stella (Zerado)</code>). Eles irão para o rascunho abaixo para você revisar antes de enviar.</p>
+                <textarea id="bulkPasteInput" rows="4" placeholder="1 plt Sukita lata&#10;2 plt Baré 1L (CRÍTICO)&#10;Stella Artois (Zerado)" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-sky-500 outline-none"></textarea>
+                <button type="button" onclick="handleBulkPasteToDraft()" class="w-full py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs rounded-xl transition">
+                  ⚡ Jogar Itens no Rascunho
+                </button>
+              </div>
+            </details>
           </div>
 
-          <!-- Colar Lista Rápida -->
-          <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-            <h2 class="text-base font-bold text-slate-800 mb-1 flex items-center gap-2">
-              <span class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-sm font-extrabold">📋</span>
-              Colar Lista Rápida (Vários Itens)
-            </h2>
-            <p class="text-xs text-slate-500 mb-3">Cole uma linha por item. O sistema reconhece automaticamente quantidades (ex: <code class="bg-slate-100 px-1 rounded">2 plt Skol 1L</code>, <code class="bg-slate-100 px-1 rounded">50 cx Pepsi</code>) e alertas (<code class="bg-slate-100 px-1 rounded">ZERADO</code>, <code class="bg-slate-100 px-1 rounded">CRÍTICO</code>).</p>
-            <textarea id="bulkPasteInput" rows="5" placeholder="Exemplo para esta base:&#10;1 plt Sukita lata&#10;2 plt Baré 1L (CRÍTICO)&#10;Stella Artois (Zerado)&#10;30 cx Água 500ml" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-emerald-500 outline-none mb-3"></textarea>
-            <button onclick="handleBulkPaste()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl transition">
-              ⚡ Processar e Adicionar Todos os Itens
+          <!-- RASCUNHO LOCAL (CARRINHO ANTES DE ENVIAR AO ANALISTA) -->
+          <div class="bg-amber-50/70 rounded-2xl p-6 shadow-sm border-2 border-amber-300/80">
+            <div class="flex items-center justify-between gap-2 mb-3">
+              <div>
+                <h3 class="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                  <span>📝</span> Rascunho Local (<span id="draftBaseLabel" class="text-amber-700">NON</span>)
+                </h3>
+                <p class="text-xs text-slate-600">Revise os itens abaixo antes de enviar ao Analista</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <span id="draftCountBadge" class="px-2.5 py-1 rounded-full text-xs font-extrabold bg-amber-200 text-amber-900">0 itens</span>
+                <button onclick="clearDraft()" id="clearDraftBtn" class="hidden text-xs font-semibold text-rose-600 hover:underline">Limpar</button>
+              </div>
+            </div>
+
+            <div id="draftItemsList" class="divide-y divide-amber-200/70 max-h-[260px] overflow-y-auto custom-scroll bg-white rounded-xl border border-amber-200 px-3 mb-4">
+            </div>
+
+            <button onclick="submitDraftToAnalyst()" id="sendDraftBtn" disabled class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-extrabold text-sm rounded-xl shadow-md transition flex items-center justify-center gap-2">
+              <span>🚀</span> Enviar Pedido Completo para o Analista
             </button>
           </div>
         </div>
 
-        <!-- Coluna Direita: Lista de Pedidos da Base Selecionada -->
-        <div class="lg:col-span-7">
-          <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 min-h-[520px] flex flex-col">
+        <!-- Coluna Direita: Pedidos Já Enviados para o Analista -->
+        <div class="lg:col-span-6">
+          <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 min-h-[620px] flex flex-col">
             <div class="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-slate-100">
               <div>
-                <h3 class="text-base font-bold text-slate-800">
-                  Pedidos Lançados — <span id="currentBaseTitle" class="text-sky-600">NON</span>
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                  <span>✅</span> Pedidos Enviados — <span id="currentBaseTitle" class="text-sky-600">NON</span>
                 </h3>
-                <p class="text-xs text-slate-500">Acompanhe em tempo real o status marcado pelo analista</p>
+                <p class="text-xs text-slate-500">Se esqueceu algum item, basta adicionar no rascunho ao lado e enviar novamente</p>
               </div>
               <div class="flex items-center gap-2">
                 <span id="baseItemCount" class="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700">0 itens</span>
@@ -177,7 +210,7 @@
               </div>
             </div>
 
-            <div id="baseItemsList" class="flex-1 divide-y divide-slate-100 overflow-y-auto max-h-[600px] custom-scroll mt-2">
+            <div id="baseItemsList" class="flex-1 divide-y divide-slate-100 overflow-y-auto max-h-[650px] custom-scroll mt-2">
             </div>
           </div>
         </div>
@@ -218,7 +251,7 @@
 
           <div class="flex items-center gap-2 w-full sm:w-auto">
             <div class="relative flex-1 sm:w-64">
-              <input type="text" id="analystSearchInput" oninput="renderAnalystView()" placeholder="Buscar SKU ou item..." class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-sky-500 outline-none">
+              <input type="text" id="analystSearchInput" oninput="renderAnalystView()" placeholder="Buscar SKU ou responsável..." class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-sky-500 outline-none">
               <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
               </svg>
@@ -227,7 +260,7 @@
               <option value="all">Todos os Status</option>
               <option value="pendente">⏳ Pendentes</option>
               <option value="enviado">✅ Enviados</option>
-              <option value="falta">❌ Falta (Fábrica)</option>
+              <option value="falta">❌ Falta na Fábrica</option>
               <option value="programado">🕒 Em X Dias</option>
             </select>
           </div>
@@ -270,7 +303,7 @@
             <span class="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 text-[11px] font-bold uppercase tracking-wider">Modo Reunião Ao Vivo</span>
             <span id="presentationTimestamp" class="text-xs text-slate-400"></span>
           </div>
-          <h2 class="text-lg sm:text-xl font-extrabold mt-1">Status de Abastecimento</h2>
+          <h2 class="text-lg sm:text-xl font-extrabold mt-1">Status de Abastecimento & Substituições</h2>
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
@@ -299,7 +332,7 @@
 
         <div class="bg-white rounded-2xl p-4 border-l-4 border-rose-500 shadow-sm flex items-center justify-between">
           <div>
-            <p class="text-xs font-bold text-slate-400 uppercase">Falta (Fábrica)</p>
+            <p class="text-xs font-bold text-slate-400 uppercase">Falta na Fábrica (Substituir)</p>
             <p id="presTotalFalta" class="text-2xl font-extrabold text-slate-800 mt-0.5">0 itens</p>
             <p class="text-xs font-semibold text-rose-600 mt-0.5">Atenção para troca na chamada</p>
           </div>
@@ -375,7 +408,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // =========================================================================
     // 1. CONFIGURAÇÃO DO FIREBASE (PROJETO: abastecimento-bases-tl)
@@ -393,6 +426,8 @@
 
     let state = {
       items: [],
+      draftsByBase: JSON.parse(localStorage.getItem("tl_drafts_by_base") || "{}"),
+      requesterName: localStorage.getItem("tl_requester_name") || "",
       cities: [...DEFAULT_CITIES],
       selectedBase: "NON",
       selectedPriority: "normal",
@@ -507,6 +542,9 @@
     // =========================================================================
     async function initStorage() {
       updateLockUI();
+      const reqInput = document.getElementById("requesterNameInput");
+      if (reqInput && state.requesterName) reqInput.value = state.requesterName;
+
       try {
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
@@ -514,13 +552,9 @@
         state.db = db;
         state.useFirebase = true;
 
-        // Caminho compartilhado único para todas as bases e analistas
         state.collectionRef = collection(db, "abastecimento_bases_tl", "geral", "itens");
-
-        // Conecta diretamente no listener em tempo real sem esperar trava de Auth
         startRealtimeListener();
 
-        // Realiza o login anônimo em segundo plano se disponível
         signInAnonymously(auth).catch(() => {});
         onAuthStateChanged(auth, (user) => {
           state.user = user;
@@ -574,6 +608,10 @@
       }
     }
 
+    function saveDraftsToStorage() {
+      localStorage.setItem("tl_drafts_by_base", JSON.stringify(state.draftsByBase));
+    }
+
     function updateSyncBadge(status) {
       const badge = document.getElementById("syncBadge");
       if (status === "online") {
@@ -586,31 +624,159 @@
     }
 
     // =========================================================================
-    // 4. OPERAÇÕES CRUD (ADICIONAR, ATUALIZAR CHECK, EXCLUIR)
+    // 4. RASCUNHO LOCAL & ENVIO EM LOTE PARA O ANALISTA
     // =========================================================================
-    async function addItemToDB(itemObj) {
-      const payload = {
-        municipio: itemObj.municipio,
-        produto: itemObj.produto,
-        qtdSolicitada: Number(itemObj.qtdSolicitada) || 1,
-        unidade: itemObj.unidade || "PLT",
-        prioridade: itemObj.prioridade || "normal",
-        status: "pendente",
-        qtdAtendida: Number(itemObj.qtdSolicitada) || 1,
-        unidadeAtendida: itemObj.unidade || "PLT",
-        diasEnvio: 3,
-        substituto: "",
-        createdAt: Date.now()
-      };
+    window.saveRequesterName = (val) => {
+      state.requesterName = val;
+      localStorage.setItem("tl_requester_name", val);
+    };
 
-      if (state.useFirebase && state.collectionRef) {
-        await addDoc(state.collectionRef, payload);
-      } else {
-        state.items.push({ id: "loc_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5), ...payload });
-        saveLocal();
+    function getCurrentDraft() {
+      if (!state.draftsByBase[state.selectedBase]) {
+        state.draftsByBase[state.selectedBase] = [];
       }
+      return state.draftsByBase[state.selectedBase];
     }
 
+    window.handleAddDraftItem = (e) => {
+      e.preventDefault();
+      const nameInput = document.getElementById("itemNameInput");
+      const qtyInput = document.getElementById("itemQtyInput");
+      const unitInput = document.getElementById("itemUnitInput");
+
+      const produto = nameInput.value.trim();
+      if (!produto) return;
+
+      const draft = getCurrentDraft();
+      draft.push({
+        tempId: "draft_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4),
+        municipio: state.selectedBase,
+        produto,
+        qtdSolicitada: parseInt(qtyInput.value, 10) || 1,
+        unidade: unitInput.value,
+        prioridade: state.selectedPriority
+      });
+
+      saveDraftsToStorage();
+      nameInput.value = "";
+      qtyInput.value = "1";
+      nameInput.focus();
+      renderDraftList();
+      showToast(`Adicionado ao rascunho de ${state.selectedBase}`, "📝");
+    };
+
+    window.handleBulkPasteToDraft = () => {
+      const textarea = document.getElementById("bulkPasteInput");
+      const lines = textarea.value.split("\n").map(l => l.trim()).filter(Boolean);
+      if (lines.length === 0) return;
+
+      const draft = getCurrentDraft();
+      lines.forEach((line, idx) => {
+        const parsed = parseLineToItem(line, state.selectedBase);
+        if (parsed) {
+          draft.push({
+            tempId: "draft_" + Date.now() + "_" + idx,
+            ...parsed
+          });
+        }
+      });
+
+      saveDraftsToStorage();
+      textarea.value = "";
+      renderDraftList();
+      showToast(`${lines.length} itens adicionados ao rascunho!`, "⚡");
+    };
+
+    window.removeDraftItem = (tempId) => {
+      const draft = getCurrentDraft();
+      state.draftsByBase[state.selectedBase] = draft.filter(d => d.tempId !== tempId);
+      saveDraftsToStorage();
+      renderDraftList();
+    };
+
+    window.clearDraft = () => {
+      state.draftsByBase[state.selectedBase] = [];
+      saveDraftsToStorage();
+      renderDraftList();
+    };
+
+    window.submitDraftToAnalyst = async () => {
+      const draft = getCurrentDraft();
+      if (draft.length === 0) return;
+
+      const responsavel = document.getElementById("requesterNameInput").value.trim();
+      if (!responsavel) {
+        showToast("Digite o seu nome no campo 'Responsável' antes de enviar!", "⚠️");
+        document.getElementById("requesterNameInput").focus();
+        return;
+      }
+
+      const sendBtn = document.getElementById("sendDraftBtn");
+      sendBtn.disabled = true;
+      sendBtn.innerHTML = `<span>⏳</span> Enviando pedido...`;
+
+      const horaEnvio = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
+      try {
+        if (state.useFirebase && state.db) {
+          const batch = writeBatch(state.db);
+          draft.forEach((item, idx) => {
+            const newDocRef = doc(state.collectionRef);
+            batch.set(newDocRef, {
+              municipio: item.municipio,
+              produto: item.produto,
+              qtdSolicitada: Number(item.qtdSolicitada) || 1,
+              unidade: item.unidade || "PLT",
+              prioridade: item.prioridade || "normal",
+              responsavel: responsavel,
+              horaEnvio: horaEnvio,
+              status: "pendente",
+              qtdAtendida: Number(item.qtdSolicitada) || 1,
+              unidadeAtendida: item.unidade || "PLT",
+              diasEnvio: 3,
+              substituto: "",
+              createdAt: Date.now() + idx
+            });
+          });
+          await batch.commit();
+        } else {
+          draft.forEach((item, idx) => {
+            state.items.push({
+              id: "loc_" + Date.now() + "_" + idx,
+              municipio: item.municipio,
+              produto: item.produto,
+              qtdSolicitada: Number(item.qtdSolicitada) || 1,
+              unidade: item.unidade || "PLT",
+              prioridade: item.prioridade || "normal",
+              responsavel: responsavel,
+              horaEnvio: horaEnvio,
+              status: "pendente",
+              qtdAtendida: Number(item.qtdSolicitada) || 1,
+              unidadeAtendida: item.unidade || "PLT",
+              diasEnvio: 3,
+              substituto: "",
+              createdAt: Date.now() + idx
+            });
+          });
+          saveLocal();
+        }
+
+        // Limpa apenas o rascunho desta base após enviar com sucesso
+        const totalSent = draft.length;
+        state.draftsByBase[state.selectedBase] = [];
+        saveDraftsToStorage();
+        renderDraftList();
+        showToast(`Pedido enviado (${totalSent} itens) por ${responsavel}!`, "🚀");
+      } catch (err) {
+        console.error("Erro ao enviar pedido:", err);
+        showToast("Erro ao enviar. Verifique sua internet.", "❌");
+        renderDraftList();
+      }
+    };
+
+    // =========================================================================
+    // 5. OPERAÇÕES DO ANALISTA E LIMPEZA
+    // =========================================================================
     window.updateItemField = async (id, updates) => {
       if (state.useFirebase && state.db) {
         const ref = doc(state.db, "abastecimento_bases_tl", "geral", "itens", id);
@@ -650,11 +816,11 @@
         state.items = state.items.filter(i => i.municipio !== state.selectedBase);
         saveLocal();
       }
-      showToast(`Lista de ${state.selectedBase} limpa.`, "🧹");
+      showToast(`Lista enviada de ${state.selectedBase} limpa.`, "🧹");
     };
 
     // =========================================================================
-    // 5. EVENTOS DA ABA 1 (BASES)
+    // 6. EVENTOS AUXILIARES E CARGA INICIAL
     // =========================================================================
     window.changeSelectedBase = (city) => {
       state.selectedBase = city;
@@ -677,29 +843,6 @@
           btn.className = `prio-btn py-2 px-2 rounded-lg text-xs font-semibold border ${map[btn.dataset.prio]}`;
         }
       });
-    };
-
-    window.handleAddSingleItem = async (e) => {
-      e.preventDefault();
-      const nameInput = document.getElementById("itemNameInput");
-      const qtyInput = document.getElementById("itemQtyInput");
-      const unitInput = document.getElementById("itemUnitInput");
-
-      const produto = nameInput.value.trim();
-      if (!produto) return;
-
-      await addItemToDB({
-        municipio: state.selectedBase,
-        produto,
-        qtdSolicitada: parseInt(qtyInput.value, 10) || 1,
-        unidade: unitInput.value,
-        prioridade: state.selectedPriority
-      });
-
-      nameInput.value = "";
-      qtyInput.value = "1";
-      nameInput.focus();
-      showToast(`Adicionado em ${state.selectedBase}: ${produto}`, "✅");
     };
 
     function parseLineToItem(rawLine, municipio) {
@@ -729,43 +872,6 @@
       };
     }
 
-    window.handleBulkPaste = async () => {
-      const textarea = document.getElementById("bulkPasteInput");
-      const lines = textarea.value.split("\n").map(l => l.trim()).filter(Boolean);
-      if (lines.length === 0) return;
-
-      if (state.useFirebase && state.db) {
-        const batch = writeBatch(state.db);
-        lines.forEach((line, idx) => {
-          const parsed = parseLineToItem(line, state.selectedBase);
-          if (parsed) {
-            const newDocRef = doc(state.collectionRef);
-            batch.set(newDocRef, {
-              ...parsed,
-              status: "pendente",
-              qtdAtendida: parsed.qtdSolicitada,
-              unidadeAtendida: parsed.unidade,
-              diasEnvio: 3,
-              substituto: "",
-              createdAt: Date.now() + idx
-            });
-          }
-        });
-        await batch.commit();
-      } else {
-        for (const line of lines) {
-          const parsed = parseLineToItem(line, state.selectedBase);
-          if (parsed) await addItemToDB(parsed);
-        }
-      }
-
-      textarea.value = "";
-      showToast(`${lines.length} itens lançados em ${state.selectedBase}!`, "⚡");
-    };
-
-    // =========================================================================
-    // 6. CARGA INICIAL COM A LISTA DOS MUNICÍPIOS
-    // =========================================================================
     window.seedInitialData = async () => {
       const rawData = {
         "NON": [
@@ -812,6 +918,8 @@
             const newRef = doc(state.collectionRef);
             batch.set(newRef, {
               ...parsed,
+              responsavel: "Carga Inicial",
+              horaEnvio: "--:--",
               status: "pendente",
               qtdAtendida: parsed.qtdSolicitada,
               unidadeAtendida: parsed.unidade,
@@ -822,16 +930,8 @@
           }
         }
         await batch.commit();
-      } else {
-        for (const [city, items] of Object.entries(rawData)) {
-          for (const raw of items) {
-            const parsed = parseLineToItem(raw, city);
-            await addItemToDB(parsed);
-          }
-        }
       }
-
-      showToast("Todos os municípios e itens iniciais foram carregados!", "🪄");
+      showToast("Carga inicial carregada!", "🪄");
     };
 
     // =========================================================================
@@ -957,11 +1057,53 @@
       return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">⏳ Aguardando Analista</span>`;
     }
 
+    function renderDraftList() {
+      const draft = getCurrentDraft();
+      document.getElementById("draftBaseLabel").textContent = state.selectedBase;
+      document.getElementById("draftCountBadge").textContent = `${draft.length} ${draft.length === 1 ? "item" : "itens"}`;
+
+      const clearBtn = document.getElementById("clearDraftBtn");
+      const sendBtn = document.getElementById("sendDraftBtn");
+      const listEl = document.getElementById("draftItemsList");
+
+      if (draft.length === 0) {
+        clearBtn.classList.add("hidden");
+        sendBtn.disabled = true;
+        sendBtn.innerHTML = `<span>🚀</span> Enviar Pedido Completo para o Analista`;
+        listEl.innerHTML = `
+          <div class="py-6 text-center text-slate-400">
+            <p class="text-xs font-semibold text-slate-500">Seu rascunho está vazio.</p>
+            <p class="text-[11px] mt-0.5">Adicione os produtos acima e depois clique no botão verde para enviar.</p>
+          </div>
+        `;
+        return;
+      }
+
+      clearBtn.classList.remove("hidden");
+      sendBtn.disabled = false;
+      sendBtn.innerHTML = `<span>🚀</span> Enviar Pedido Completo (${draft.length} ${draft.length === 1 ? "item" : "itens"})`;
+
+      listEl.innerHTML = draft.map((d, index) => `
+        <div class="py-2.5 flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="text-xs font-extrabold text-amber-700 w-5 shrink-0">${index + 1}.</span>
+            <span class="text-xs sm:text-sm font-bold text-slate-800 truncate">${d.produto}</span>
+            <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-extrabold shrink-0">${d.qtdSolicitada} ${d.unidade}</span>
+            ${getPriorityBadge(d.prioridade)}
+          </div>
+          <button type="button" onclick="removeDraftItem('${d.tempId}')" class="p-1 text-slate-400 hover:text-rose-600 rounded transition text-xs shrink-0" title="Remover do rascunho">
+            ✕
+          </button>
+        </div>
+      `).join("");
+    }
+
     function renderBaseView() {
       const select = document.getElementById("baseSelect");
       select.innerHTML = state.cities.map(c => `<option value="${c}" ${c === state.selectedBase ? "selected" : ""}>${c}</option>`).join("");
 
       document.getElementById("currentBaseTitle").textContent = state.selectedBase;
+      renderDraftList();
 
       const filtered = state.items.filter(i => i.municipio === state.selectedBase);
       document.getElementById("baseItemCount").textContent = `${filtered.length} ${filtered.length === 1 ? "item" : "itens"}`;
@@ -971,8 +1113,8 @@
         listEl.innerHTML = `
           <div class="py-16 text-center text-slate-400">
             <p class="text-3xl mb-2">📦</p>
-            <p class="text-sm font-semibold text-slate-600">Nenhum pedido lançado para ${state.selectedBase} ainda.</p>
-            <p class="text-xs mt-1">Use o formulário ao lado para adicionar itens ou cole sua lista.</p>
+            <p class="text-sm font-semibold text-slate-600">Nenhum pedido enviado para ${state.selectedBase} ainda.</p>
+            <p class="text-xs mt-1">Monte sua lista no Rascunho Local ao lado e clique em Enviar Pedido.</p>
           </div>
         `;
         return;
@@ -986,8 +1128,9 @@
               ${getPriorityBadge(item.prioridade)}
             </div>
             <p class="text-xs text-slate-500">
-              Pedido da base: <strong class="text-slate-700">${item.qtdSolicitada} ${item.unidade}</strong>
-              ${item.substituto ? ` • <span class="text-indigo-600 font-semibold">Sugestão troca: ${item.substituto}</span>` : ""}
+              Pedido: <strong class="text-slate-700">${item.qtdSolicitada} ${item.unidade}</strong>
+              ${item.responsavel ? ` • <span class="text-slate-600">Por: <strong>${item.responsavel}</strong> (${item.horaEnvio || ''})</span>` : ""}
+              ${item.substituto ? ` • <span class="text-indigo-600 font-semibold">Troca: ${item.substituto}</span>` : ""}
             </p>
           </div>
 
@@ -1031,7 +1174,7 @@
       const filtered = state.items.filter(item => {
         if (state.analystCityFilter !== "ALL" && item.municipio !== state.analystCityFilter) return false;
         if (statusFilter !== "all" && item.status !== statusFilter) return false;
-        if (search && !item.produto.toLowerCase().includes(search) && !item.municipio.toLowerCase().includes(search)) return false;
+        if (search && !item.produto.toLowerCase().includes(search) && !item.municipio.toLowerCase().includes(search) && !(item.responsavel || "").toLowerCase().includes(search)) return false;
         return true;
       });
 
@@ -1040,7 +1183,7 @@
         container.innerHTML = `
           <div class="bg-white rounded-2xl p-12 text-center border border-slate-200 text-slate-400">
             <p class="text-sm font-semibold text-slate-600">Nenhum item encontrado com os filtros selecionados.</p>
-            <p class="text-xs mt-1">Altere o filtro de status ou adicione itens na Aba 1.</p>
+            <p class="text-xs mt-1">Altere o filtro de status ou aguarde o envio das bases.</p>
           </div>
         `;
         return;
@@ -1060,7 +1203,7 @@
           <div class="bg-white rounded-2xl p-4 shadow-sm border ${borderClass} transition-all">
             <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               
-              <!-- Info do Produto -->
+              <!-- Info do Produto + Responsável -->
               <div class="flex items-start gap-3">
                 <span class="px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs font-extrabold tracking-wide shrink-0 mt-0.5">
                   ${item.municipio}
@@ -1071,14 +1214,14 @@
                     ${getPriorityBadge(item.prioridade)}
                   </div>
                   <p class="text-xs text-slate-500 mt-0.5">
-                    Solicitado pela base: <strong class="text-slate-700">${item.qtdSolicitada} ${item.unidade}</strong>
+                    Solicitado: <strong class="text-slate-700">${item.qtdSolicitada} ${item.unidade}</strong>
+                    ${item.responsavel ? ` • <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-semibold">👤 ${item.responsavel} ${item.horaEnvio ? `às ${item.horaEnvio}` : ''}</span>` : ""}
                   </p>
                 </div>
               </div>
 
               <!-- Controles de Check do Analista -->
               <div class="flex flex-wrap items-center gap-2">
-                <!-- Botões de Status -->
                 <div class="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
                   <button onclick="updateItemField('${item.id}', { status: 'enviado' })" class="px-3 py-1.5 rounded-lg text-xs font-bold transition ${isEnviado ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:text-emerald-700'}">
                     ✅ Enviado
@@ -1091,7 +1234,6 @@
                   </button>
                 </div>
 
-                <!-- Inputs de Quantidade (aparece se Enviado ou Programado) -->
                 ${(isEnviado || isProg) ? `
                   <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1">
                     <span class="text-[11px] font-bold text-slate-500">Qtd:</span>
@@ -1103,7 +1245,6 @@
                   </div>
                 ` : ''}
 
-                <!-- Input de Dias (aparece se Em X Dias) -->
                 ${isProg ? `
                   <div class="flex items-center gap-1.5 bg-amber-50 border border-amber-300 rounded-xl px-2.5 py-1">
                     <span class="text-[11px] font-bold text-amber-800">Prazo:</span>
@@ -1112,7 +1253,6 @@
                   </div>
                 ` : ''}
 
-                <!-- Input de Substituto (aparece se Falta na Fábrica) -->
                 ${isFalta ? `
                   <div class="flex items-center gap-1.5 bg-rose-50 border border-rose-200 rounded-xl px-2.5 py-1">
                     <span class="text-[11px] font-bold text-rose-700">Substituir por:</span>
@@ -1120,7 +1260,6 @@
                   </div>
                 ` : ''}
 
-                <!-- Resetar para pendente ou excluir -->
                 ${item.status !== 'pendente' ? `
                   <button onclick="updateItemField('${item.id}', { status: 'pendente' })" class="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg text-xs" title="Voltar para pendente">↩️</button>
                 ` : ''}
@@ -1178,7 +1317,6 @@
 
         return `
           <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <!-- Cabeçalho do Município -->
             <div class="bg-slate-800 text-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
               <div class="flex items-center gap-3">
                 <span class="text-lg font-extrabold tracking-tight text-sky-400">📍 ${city}</span>
@@ -1194,9 +1332,7 @@
               </div>
             </div>
 
-            <!-- 3 Colunas Claras para a Chamada -->
             <div class="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-200">
-              
               <!-- Coluna 1: O que enviei -->
               <div class="p-4 bg-emerald-50/30">
                 <div class="flex items-center justify-between mb-3">
@@ -1219,7 +1355,7 @@
                 `}
               </div>
 
-              <!-- Coluna 2: O que não consigo enviar (Falta na fábrica) -->
+              <!-- Coluna 2: Falta na fábrica -->
               <div class="p-4 bg-rose-50/30">
                 <div class="flex items-center justify-between mb-3">
                   <h4 class="text-xs font-extrabold uppercase tracking-wider text-rose-800 flex items-center gap-1.5">
@@ -1246,7 +1382,7 @@
                 `}
               </div>
 
-              <!-- Coluna 3: O que vou mandar em X dias -->
+              <!-- Coluna 3: Envio em X Dias -->
               <div class="p-4 bg-amber-50/30">
                 <div class="flex items-center justify-between mb-3">
                   <h4 class="text-xs font-extrabold uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
@@ -1270,7 +1406,6 @@
                   </ul>
                 `}
               </div>
-
             </div>
           </div>
         `;
