@@ -1,0 +1,1564 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestão de Abastecimento por Município</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f1f5f9;
+      color: #0f172a;
+    }
+    .font-mono-tech {
+      font-family: 'Space Mono', monospace;
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    /* Modo Apresentação Tela Cheia */
+    body.presentation-fullscreen header,
+    body.presentation-fullscreen .hide-in-fullscreen {
+      display: none !important;
+    }
+    body.presentation-fullscreen #fullscreen-exit-bar {
+      display: flex !important;
+    }
+    body.presentation-fullscreen main {
+      max-width: 100% !important;
+      padding: 16px 24px !important;
+    }
+    @media print {
+      header, .no-print, #fullscreen-exit-bar, #toast-container {
+        display: none !important;
+      }
+      body {
+        background: #ffffff !important;
+      }
+      .print-break {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Barra de Saída do Modo Tela Cheia -->
+  <div id="fullscreen-exit-bar" class="hidden fixed bottom-4 right-4 z-50 bg-slate-900/90 backdrop-blur text-white px-4 py-2.5 rounded-full shadow-xl items-center gap-3 border border-slate-700">
+    <span class="text-xs font-mono-tech text-sky-400 uppercase tracking-wider">Modo Apresentação Ativo</span>
+    <button onclick="toggleFullscreenMode(false)" class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs px-3 py-1.5 rounded-full transition cursor-pointer">
+      <i class="fa-solid fa-compress mr-1"></i> Sair da Tela Cheia
+    </button>
+  </div>
+
+  <!-- Notificações Toast -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Modal de Senha do Analista (Substitui prompt/alert nativos com visual corporativo) -->
+  <div id="auth-modal" class="hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs items-center justify-center p-4" onclick="if(event.target===this) closeAuthModal()">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-10 h-10 rounded-xl bg-slate-900 text-sky-400 flex items-center justify-center text-lg shrink-0">
+          <i class="fa-solid fa-lock"></i>
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-slate-900">Acesso Restrito — Analista</h3>
+          <p id="auth-modal-subtitle" class="text-xs text-slate-500">Digite a senha para desbloquear esta ação</p>
+        </div>
+      </div>
+      <form onsubmit="submitAnalystPassword(event)" class="space-y-4 mt-4">
+        <div>
+          <label for="auth-password-input" class="block text-xs font-bold text-slate-600 uppercase mb-1">Senha do Analista</label>
+          <input type="password" id="auth-password-input" autocomplete="off" placeholder="••••••••" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-bold tracking-widest focus:bg-white focus:ring-2 focus:ring-sky-500 outline-none">
+          <p id="auth-error-msg" class="hidden text-xs font-bold text-rose-600 mt-1.5">
+            <i class="fa-solid fa-circle-exclamation mr-1"></i>Senha incorreta. Tente novamente.
+          </p>
+        </div>
+        <div class="flex justify-end gap-2.5 pt-1">
+          <button type="button" onclick="closeAuthModal()" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition cursor-pointer">
+            Cancelar
+          </button>
+          <button type="submit" class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 transition cursor-pointer flex items-center gap-1.5">
+            <i class="fa-solid fa-unlock-keyhole"></i> Desbloquear
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmação / Ação -->
+  <div id="confirm-modal" class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-lg shrink-0">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+        <h3 id="confirm-modal-title" class="text-lg font-bold text-slate-900">Confirmar Ação</h3>
+      </div>
+      <p id="confirm-modal-msg" class="text-sm text-slate-600 mb-6 leading-relaxed"></p>
+      <div class="flex justify-end gap-3">
+        <button onclick="closeConfirmModal()" class="px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition cursor-pointer">
+          Cancelar
+        </button>
+        <button id="confirm-modal-ok" class="px-4 py-2 rounded-xl text-sm font-bold text-white bg-rose-600 hover:bg-rose-700 transition cursor-pointer">
+          Confirmar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cabeçalho Principal Corporativo -->
+  <header class="bg-slate-900 text-white shadow-lg sticky top-0 z-40 border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between py-3.5 gap-3">
+        <!-- Logo & Título -->
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-sky-400 text-lg">
+              <i class="fa-solid fa-truck-ramp-box"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h1 class="text-lg sm:text-xl font-bold tracking-tight text-white">Abastecimento & Reposição</h1>
+                <span id="sync-status-badge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-800 text-amber-300 border border-slate-700">
+                  <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span> Conectando...
+                </span>
+              </div>
+              <p class="text-xs text-slate-400 hidden sm:block">Sincronização em tempo real • Bases & Analista</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Navegação das 3 Abas Principais -->
+        <nav class="grid grid-cols-3 gap-1.5 bg-slate-950/70 p-1.5 rounded-2xl border border-slate-800">
+          <button onclick="switchTab('bases')" id="tab-btn-bases" class="tab-btn flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer">
+            <i class="fa-solid fa-clipboard-list"></i>
+            <span>1. Bases (Pedido)</span>
+          </button>
+          <button onclick="requestAnalystAction(() => switchTab('analista'), 'Acesso ao Painel de Check do Analista')" id="tab-btn-analista" class="tab-btn flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer">
+            <i id="analyst-tab-lock-icon" class="fa-solid fa-lock text-amber-400"></i>
+            <span>2. Analista (Check)</span>
+            <span id="pending-counter-badge" class="hidden bg-amber-500 text-slate-950 text-[11px] font-extrabold px-1.5 py-0.2 rounded-full">0</span>
+          </button>
+          <button onclick="switchTab('apresentacao')" id="tab-btn-apresentacao" class="tab-btn flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer">
+            <i class="fa-solid fa-display"></i>
+            <span>3. Apresentação</span>
+          </button>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <!-- Conteúdo Principal -->
+  <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+    <!-- =================================================================== -->
+    <!-- ABA 1: SOLICITAÇÃO DAS BASES (RESPONSÁVEIS)                         -->
+    <!-- =================================================================== -->
+    <section id="view-bases" class="space-y-6">
+      <!-- Barra Superior de Seleção de Município + Ações Rápidas -->
+      <div class="bg-white rounded-2xl p-5 shadow-xs border border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-3 flex-grow">
+          <label for="base-muni-select" class="text-sm font-bold text-slate-700 whitespace-nowrap">
+            <i class="fa-solid fa-location-dot text-sky-600 mr-1.5"></i>Base / Município:
+          </label>
+          <div class="flex items-center gap-2 flex-wrap">
+            <select id="base-muni-select" onchange="onBaseMuniChange()" class="bg-slate-50 border border-slate-300 text-slate-900 font-bold text-sm rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none min-w-[200px]">
+              <!-- Populado via JS -->
+            </select>
+            <button onclick="toggleNewMuniBox()" class="px-3.5 py-2.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer">
+              <i class="fa-solid fa-plus mr-1"></i> Novo Município
+            </button>
+          </div>
+          <!-- Input inline para novo município -->
+          <div id="new-muni-box" class="hidden items-center gap-2">
+            <input type="text" id="new-muni-input" placeholder="Nome da base..." class="bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm font-semibold uppercase focus:ring-2 focus:ring-sky-500 outline-none w-40">
+            <button onclick="addNewMunicipality()" class="bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-3.5 py-2.5 rounded-xl transition cursor-pointer">
+              Adicionar
+            </button>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <button onclick="requestAnalystAction(() => seedInitialUserList(), 'Importar Carga Inicial das 6 Bases')" class="px-4 py-2.5 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition cursor-pointer flex items-center gap-2">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Importar Lista Rápida (Carga Inicial)
+          </button>
+        </div>
+      </div>
+
+      <!-- Grid Principal da Aba 1: Lançamento (Esquerda) + Lista Lançada (Direita) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Coluna de Lançamento (5 cols) -->
+        <div class="lg:col-span-5 space-y-6">
+          <!-- Card 1: Adicionar Item Individual -->
+          <div class="bg-white rounded-2xl p-5 shadow-xs border border-slate-200">
+            <h2 class="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <span class="w-7 h-7 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center text-xs">
+                <i class="fa-solid fa-plus"></i>
+              </span>
+              Adicionar Item Individual
+            </h2>
+            <form onsubmit="handleAddSingleItem(event)" class="space-y-3.5">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Produto / SKU *</label>
+                <input type="text" id="single-item-name" required placeholder="Ex: Skol 1L, Pepsi 2L, Água 500ml..." class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:bg-white focus:ring-2 focus:ring-sky-500 outline-none">
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Qtd. Solicitada *</label>
+                  <input type="number" id="single-item-qty" min="1" step="any" value="1" required class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-bold focus:bg-white focus:ring-2 focus:ring-sky-500 outline-none">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Unidade</label>
+                  <select id="single-item-unit" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-bold focus:bg-white focus:ring-2 focus:ring-sky-500 outline-none">
+                    <option value="PLT">Palete (PLT)</option>
+                    <option value="CX">Caixa (CX)</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Observação / Criticidade</label>
+                <div class="grid grid-cols-4 gap-1.5">
+                  <label class="cursor-pointer">
+                    <input type="radio" name="single-item-tag" value="Normal" checked class="peer sr-only">
+                    <div class="text-center py-2 px-1 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 peer-checked:bg-slate-800 peer-checked:text-white peer-checked:border-slate-800 transition">Normal</div>
+                  </label>
+                  <label class="cursor-pointer">
+                    <input type="radio" name="single-item-tag" value="CRÍTICO" class="peer sr-only">
+                    <div class="text-center py-2 px-1 rounded-xl border border-rose-200 text-xs font-semibold text-rose-700 peer-checked:bg-rose-600 peer-checked:text-white peer-checked:border-rose-600 transition">Crítico</div>
+                  </label>
+                  <label class="cursor-pointer">
+                    <input type="radio" name="single-item-tag" value="ZERADO" class="peer sr-only">
+                    <div class="text-center py-2 px-1 rounded-xl border border-amber-200 text-xs font-semibold text-amber-700 peer-checked:bg-amber-600 peer-checked:text-white peer-checked:border-amber-600 transition">Zerado</div>
+                  </label>
+                  <label class="cursor-pointer">
+                    <input type="radio" name="single-item-tag" value="REPOR" class="peer sr-only">
+                    <div class="text-center py-2 px-1 rounded-xl border border-sky-200 text-xs font-semibold text-sky-700 peer-checked:bg-sky-600 peer-checked:text-white peer-checked:border-sky-600 transition">Repor</div>
+                  </label>
+                </div>
+              </div>
+              <button type="submit" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm py-3 rounded-xl shadow-sm transition cursor-pointer flex items-center justify-center gap-2">
+                <i class="fa-solid fa-paper-plane"></i> Lançar Pedido na Base
+              </button>
+            </form>
+          </div>
+
+          <!-- Card 2: Colar Lista em Lote -->
+          <div class="bg-white rounded-2xl p-5 shadow-xs border border-slate-200">
+            <h2 class="text-base font-bold text-slate-900 mb-1 flex items-center gap-2">
+              <span class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs">
+                <i class="fa-solid fa-paste"></i>
+              </span>
+              Colar Lista Rápida (Vários Itens)
+            </h2>
+            <p class="text-xs text-slate-500 mb-3">Cole uma linha por item. O sistema reconhece automaticamente quantidades (ex: <code class="bg-slate-100 px-1 rounded">2 plt Skol 1L</code>, <code class="bg-slate-100 px-1 rounded">50 cx Pepsi</code>) e alertas (<code class="bg-slate-100 px-1 rounded">ZERADO</code>, <code class="bg-slate-100 px-1 rounded">CRÍTICO</code>).</p>
+            <textarea id="bulk-paste-textarea" rows="6" placeholder="Exemplo para esta base:
+1 plt Sukita lata
+2 plt Baré 1L (CRÍTICO)
+Stella Artois (Zerado)
+30 cx Água 500ml" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs font-mono-tech focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none mb-3"></textarea>
+            <button onclick="handleBulkPaste()" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-3 rounded-xl transition cursor-pointer flex items-center justify-center gap-2">
+              <i class="fa-solid fa-bolt text-amber-400"></i> Processar e Adicionar Todos os Itens
+            </button>
+          </div>
+        </div>
+
+        <!-- Coluna de Itens Lançados da Base Selecionada (7 cols) -->
+        <div class="lg:col-span-7">
+          <div class="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden flex flex-col h-full">
+            <div class="p-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70">
+              <div>
+                <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                  Pedidos Lançados — <span id="base-list-muni-title" class="text-sky-600">NON</span>
+                </h2>
+                <p class="text-xs text-slate-500 mt-0.5">Acompanhe em tempo real o status marcado pelo analista</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <span id="base-list-count" class="bg-slate-200 text-slate-800 text-xs font-bold px-3 py-1 rounded-full">0 itens</span>
+                <button onclick="requestAnalystAction(() => confirmClearMuniItems(), 'Limpar todos os pedidos da base')" class="text-xs font-semibold text-rose-600 hover:bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200 transition cursor-pointer flex items-center gap-1">
+                  <i class="fa-solid fa-lock text-[10px]"></i>
+                  <i class="fa-solid fa-trash-can"></i> Limpar Base
+                </button>
+              </div>
+            </div>
+
+            <div id="base-items-list" class="divide-y divide-slate-100 overflow-y-auto max-h-[640px] p-2">
+              <!-- Itens renderizados via JS -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- ABA 2: PAINEL DO ANALISTA (TRIAGEM & CHECK)                         -->
+    <!-- =================================================================== -->
+    <section id="view-analista" class="hidden space-y-5">
+      <!-- Barra de Controle de Sessão do Analista (Bloquear / Alterar Senha) -->
+      <div class="bg-slate-900 text-white rounded-2xl px-4 py-3 shadow-xs border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex items-center gap-2.5">
+          <span class="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-sm shrink-0">
+            <i class="fa-solid fa-shield-halved"></i>
+          </span>
+          <div>
+            <p class="text-xs font-bold text-white">Sessão do Analista Desbloqueada</p>
+            <p class="text-[11px] text-slate-400">Senha ativa atual: <code id="current-password-display" class="bg-slate-800 text-sky-300 px-1.5 py-0.5 rounded font-mono-tech font-bold">TL2026</code></p>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="flex items-center bg-slate-800 rounded-xl p-1 border border-slate-700">
+            <input type="text" id="new-analyst-pass-input" placeholder="Nova senha..." class="bg-transparent text-xs text-white px-2.5 py-1 outline-none w-28 font-mono-tech">
+            <button onclick="changeSessionPassword()" class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-[11px] px-2.5 py-1 rounded-lg transition cursor-pointer">
+              Alterar Senha
+            </button>
+          </div>
+          <button onclick="lockAnalystSession()" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 transition cursor-pointer flex items-center gap-1.5">
+            <i class="fa-solid fa-lock"></i> Bloquear Aba
+          </button>
+        </div>
+      </div>
+
+      <!-- Barra de Filtros e Resumo Rápido -->
+      <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200 space-y-4">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <!-- Pills de Filtro de Município -->
+          <div class="flex items-center gap-1.5 flex-wrap" id="analyst-muni-pills">
+            <!-- Populado via JS -->
+          </div>
+
+          <!-- Busca + Filtro de Status -->
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+            <div class="relative">
+              <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+              <input type="text" id="analyst-search-input" oninput="renderAnalystView()" placeholder="Buscar SKU ou item..." class="bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-3.5 py-2 text-xs font-medium focus:bg-white focus:ring-2 focus:ring-sky-500 outline-none w-full sm:w-52">
+            </div>
+            <select id="analyst-status-filter" onchange="renderAnalystView()" class="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-sky-500 outline-none">
+              <option value="ALL">Todos os Status</option>
+              <option value="pendente">⚪ Aguardando Check</option>
+              <option value="enviado">✅ Enviado</option>
+              <option value="falta">❌ Falta na Fábrica</option>
+              <option value="dias">⏳ Enviar em X dias</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Mini Contadores do Analista -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
+          <div class="bg-slate-50 rounded-xl px-3.5 py-2.5 flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-500">Aguardando Check</span>
+            <span id="stat-analyst-pendente" class="text-base font-extrabold text-slate-800">0</span>
+          </div>
+          <div class="bg-emerald-50 rounded-xl px-3.5 py-2.5 flex items-center justify-between">
+            <span class="text-xs font-semibold text-emerald-700">Enviados</span>
+            <span id="stat-analyst-enviado" class="text-base font-extrabold text-emerald-700">0</span>
+          </div>
+          <div class="bg-rose-50 rounded-xl px-3.5 py-2.5 flex items-center justify-between">
+            <span class="text-xs font-semibold text-rose-700">Falta Fábrica</span>
+            <span id="stat-analyst-falta" class="text-base font-extrabold text-rose-700">0</span>
+          </div>
+          <div class="bg-amber-50 rounded-xl px-3.5 py-2.5 flex items-center justify-between">
+            <span class="text-xs font-semibold text-amber-700">Em X Dias</span>
+            <span id="stat-analyst-dias" class="text-base font-extrabold text-amber-700">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lista Ágil de Triagem -->
+      <div id="analyst-items-container" class="space-y-2.5">
+        <!-- Cards/Linhas de Check renderizados via JS -->
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- ABA 3: APRESENTAÇÃO AO VIVO (VISUALIZAÇÃO EXECUTIVA)                -->
+    <!-- =================================================================== -->
+    <section id="view-apresentacao" class="hidden space-y-6">
+      <!-- Controles Executivos (Ocultos no modo Tela Cheia) -->
+      <div class="hide-in-fullscreen bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+            <button onclick="setPresentationMode('grid')" id="pres-mode-grid-btn" class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer">
+              <i class="fa-solid fa-table-cells-large mr-1.5"></i>Todos os Municípios
+            </button>
+            <button onclick="setPresentationMode('slide')" id="pres-mode-slide-btn" class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer">
+              <i class="fa-solid fa-Presentation-screen mr-1.5"></i>Modo Slide (1 por vez)
+            </button>
+          </div>
+
+          <!-- Navegação de Slide Individual -->
+          <div id="slide-nav-controls" class="hidden items-center gap-2 bg-slate-900 text-white px-3 py-1.5 rounded-xl">
+            <button onclick="changeSlideIndex(-1)" class="hover:text-sky-400 px-2 py-0.5 cursor-pointer" title="Anterior">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <span id="slide-indicator-text" class="text-xs font-mono-tech font-bold px-2">1 / 6 — NON</span>
+            <button onclick="changeSlideIndex(1)" class="hover:text-sky-400 px-2 py-0.5 cursor-pointer" title="Próximo">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <button onclick="exportCSV()" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer">
+            <i class="fa-solid fa-file-csv text-emerald-600 mr-1.5"></i>Exportar CSV
+          </button>
+          <button onclick="window.print()" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer">
+            <i class="fa-solid fa-print text-slate-600 mr-1.5"></i>Imprimir / PDF
+          </button>
+          <button onclick="toggleFullscreenMode(true)" class="px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-sm transition cursor-pointer">
+            <i class="fa-solid fa-expand mr-1.5"></i>Modo Tela Cheia / Call
+          </button>
+        </div>
+      </div>
+
+      <!-- KPIs Executivos Gerais -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-slate-900 text-white rounded-2xl p-5 shadow-sm border border-slate-800">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-mono-tech uppercase tracking-wider text-slate-400">Total Solicitado</span>
+            <span class="w-8 h-8 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center text-sm"><i class="fa-solid fa-boxes-stacked"></i></span>
+          </div>
+          <p id="kpi-total" class="text-3xl sm:text-4xl font-extrabold text-white">0</p>
+          <p id="kpi-total-sub" class="text-xs text-slate-400 mt-1">SKUs mapeados nas bases</p>
+        </div>
+
+        <div class="bg-white rounded-2xl p-5 shadow-xs border-l-4 border-l-emerald-500 border border-slate-200">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-mono-tech uppercase tracking-wider text-emerald-700 font-bold">O que Enviei</span>
+            <span class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center text-sm"><i class="fa-solid fa-truck-fast"></i></span>
+          </div>
+          <p id="kpi-enviado" class="text-3xl sm:text-4xl font-extrabold text-emerald-600">0</p>
+          <p id="kpi-enviado-vol" class="text-xs font-semibold text-slate-500 mt-1">0 PLT • 0 CX confirmados</p>
+        </div>
+
+        <div class="bg-white rounded-2xl p-5 shadow-xs border-l-4 border-l-rose-500 border border-slate-200">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-mono-tech uppercase tracking-wider text-rose-700 font-bold">Falta na Fábrica</span>
+            <span class="w-8 h-8 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center text-sm"><i class="fa-solid fa-industry"></i></span>
+          </div>
+          <p id="kpi-falta" class="text-3xl sm:text-4xl font-extrabold text-rose-600">0</p>
+          <p class="text-xs font-semibold text-slate-500 mt-1">Rupturas para substituição</p>
+        </div>
+
+        <div class="bg-white rounded-2xl p-5 shadow-xs border-l-4 border-l-amber-500 border border-slate-200">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-mono-tech uppercase tracking-wider text-amber-700 font-bold">Envio em X Dias</span>
+            <span class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center text-sm"><i class="fa-solid fa-clock"></i></span>
+          </div>
+          <p id="kpi-dias" class="text-3xl sm:text-4xl font-extrabold text-amber-600">0</p>
+          <p id="kpi-dias-vol" class="text-xs font-semibold text-slate-500 mt-1">0 PLT • 0 CX programados</p>
+        </div>
+      </div>
+
+      <!-- Cards Executivos por Município (3 Colunas: Enviado | Falta | Em X Dias) -->
+      <div id="presentation-cards-container" class="space-y-6">
+        <!-- Renderizado via JS -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Firebase SDK + Lógica Completa da Aplicação -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // =========================================================================
+    // 1. CONFIGURAÇÃO E ESTADO GLOBAL
+    // =========================================================================
+    const DEFAULT_MUNICIPALITIES = ['NON', 'Autazes', 'Barcelos', 'Careiro', 'Manaquiri', 'SGC'];
+    const DEFAULT_ANALYST_PASSWORD = 'TL2026';
+    
+    let app = null;
+    let auth = null;
+    let db = null;
+    let currentUser = null;
+    let appId = typeof __app_id !== 'undefined' ? __app_id : 'abastecimento-am-app';
+    let isFirebaseReady = false;
+    let pendingProtectedCallback = null;
+
+    // Estado reativo em memória
+    const state = {
+      activeTab: 'bases',
+      selectedBaseMuni: 'NON',
+      analystFilterMuni: 'ALL',
+      presentationMode: 'grid', // 'grid' | 'slide'
+      currentSlideIdx: 0,
+      municipalities: [...DEFAULT_MUNICIPALITIES],
+      items: [] // { id, municipality, name, reqQty, reqUnit, tag, status, sentQty, sentUnit, days, substitute, createdAt }
+    };
+
+    // =========================================================================
+    // 1.1 CONTROLE DE SENHA E SESSÃO DO ANALISTA
+    // =========================================================================
+    function getActiveAnalystPassword() {
+      return sessionStorage.getItem('tl_analyst_custom_pass') || DEFAULT_ANALYST_PASSWORD;
+    }
+
+    function isAnalystUnlocked() {
+      return sessionStorage.getItem('tl_analyst_authenticated') === 'true';
+    }
+
+    function updateLockUI() {
+      const unlocked = isAnalystUnlocked();
+      const icon = document.getElementById('analyst-tab-lock-icon');
+      if (icon) {
+        icon.className = unlocked
+          ? 'fa-solid fa-unlock text-emerald-400'
+          : 'fa-solid fa-lock text-amber-400';
+      }
+      const passDisplay = document.getElementById('current-password-display');
+      if (passDisplay) {
+        passDisplay.textContent = getActiveAnalystPassword();
+      }
+    }
+
+    window.requestAnalystAction = function(actionCallback, reasonText = 'Digite a senha para desbloquear esta ação') {
+      if (isAnalystUnlocked()) {
+        actionCallback();
+        return;
+      }
+      pendingProtectedCallback = actionCallback;
+      document.getElementById('auth-modal-subtitle').textContent = reasonText;
+      document.getElementById('auth-error-msg').classList.add('hidden');
+      const input = document.getElementById('auth-password-input');
+      input.value = '';
+      const modal = document.getElementById('auth-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      setTimeout(() => input.focus(), 50);
+    };
+
+    window.closeAuthModal = function() {
+      const modal = document.getElementById('auth-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      pendingProtectedCallback = null;
+    };
+
+    window.submitAnalystPassword = function(e) {
+      e.preventDefault();
+      const input = document.getElementById('auth-password-input');
+      const typed = input.value.trim();
+      if (typed === getActiveAnalystPassword()) {
+        sessionStorage.setItem('tl_analyst_authenticated', 'true');
+        updateLockUI();
+        const cb = pendingProtectedCallback;
+        closeAuthModal();
+        showToast('Acesso de Analista liberado!', 'success');
+        if (typeof cb === 'function') cb();
+      } else {
+        document.getElementById('auth-error-msg').classList.remove('hidden');
+        input.select();
+      }
+    };
+
+    window.lockAnalystSession = function() {
+      sessionStorage.removeItem('tl_analyst_authenticated');
+      updateLockUI();
+      showToast('Aba do Analista bloqueada.', 'info');
+      switchTab('bases');
+    };
+
+    window.changeSessionPassword = function() {
+      const input = document.getElementById('new-analyst-pass-input');
+      const newPass = input.value.trim();
+      if (newPass.length < 3) {
+        showToast('Digite uma senha com pelo menos 3 caracteres.', 'error');
+        return;
+      }
+      sessionStorage.setItem('tl_analyst_custom_pass', newPass);
+      input.value = '';
+      updateLockUI();
+      showToast(`Senha da sessão atualizada para "${newPass}"!`);
+    };
+
+    // =========================================================================
+    // 2. INICIALIZAÇÃO DO FIREBASE (AUTH -> FIRESTORE SNAPSHOT)
+    // =========================================================================
+    async function initFirebase() {
+      const badge = document.getElementById('sync-status-badge');
+      try {
+        if (typeof __firebase_config === 'undefined' || !__firebase_config) {
+          throw new Error('Configuração do Firebase ausente no ambiente.');
+        }
+        const firebaseConfig = JSON.parse(__firebase_config);
+        app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+
+        // Regra 3: Autenticar ANTES de qualquer operação no Firestore
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+
+        currentUser = auth.currentUser;
+        if (!currentUser) {
+          throw new Error('Falha na autenticação.');
+        }
+
+        isFirebaseReady = true;
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> Ao Vivo (Sincronizado)`;
+        badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-700/60';
+
+        startRealtimeListeners();
+      } catch (err) {
+        console.warn('Modo offline / fallback em memória ativado:', err);
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400"></span> Sessão Local`;
+        badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-800 text-amber-300 border border-slate-700';
+        renderAll();
+      }
+    }
+
+    function getItemsCollectionRef() {
+      // Regra 1: Caminho estrito /artifacts/{appId}/public/data/{collectionName}
+      return collection(db, 'artifacts', appId, 'public', 'data', 'supply_items');
+    }
+
+    function getMunisCollectionRef() {
+      return collection(db, 'artifacts', appId, 'public', 'data', 'supply_municipalities');
+    }
+
+    function startRealtimeListeners() {
+      if (!isFirebaseReady || !currentUser) return;
+
+      // Listener dos Municípios Customizados
+      onSnapshot(
+        getMunisCollectionRef(),
+        (snapshot) => {
+          const customMunis = [];
+          snapshot.forEach((docSnap) => {
+            const d = docSnap.data();
+            if (d && d.name) customMunis.push(d.name);
+          });
+          const merged = [...DEFAULT_MUNICIPALITIES];
+          customMunis.forEach((m) => {
+            if (!merged.some((existing) => existing.toLowerCase() === m.toLowerCase())) {
+              merged.push(m);
+            }
+          });
+          state.municipalities = merged;
+          renderAll();
+        },
+        (error) => {
+          console.error('Erro ao sincronizar municípios:', error);
+        }
+      );
+
+      // Listener dos Itens de Abastecimento (Regra 2: Sem orderBy/where composto; ordenar em JS)
+      onSnapshot(
+        getItemsCollectionRef(),
+        (snapshot) => {
+          const loaded = [];
+          snapshot.forEach((docSnap) => {
+            loaded.push({ id: docSnap.id, ...docSnap.data() });
+          });
+          // Ordenar em memória por data de criação
+          loaded.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+          state.items = loaded;
+
+          // Garantir que municípios presentes nos itens também apareçam na lista
+          loaded.forEach((item) => {
+            if (item.municipality && !state.municipalities.some((m) => m.toLowerCase() === item.municipality.toLowerCase())) {
+              state.municipalities.push(item.municipality);
+            }
+          });
+
+          renderAll();
+        },
+        (error) => {
+          console.error('Erro ao sincronizar itens:', error);
+          showToast('Erro de sincronização com o banco.', 'error');
+        }
+      );
+    }
+
+    // =========================================================================
+    // 3. OPERAÇÕES CRUD (FIRESTORE + FALLBACK EM MEMÓRIA)
+    // =========================================================================
+    async function createSupplyItem(itemData) {
+      const payload = {
+        municipality: itemData.municipality,
+        name: itemData.name,
+        reqQty: Number(itemData.reqQty) || 1,
+        reqUnit: itemData.reqUnit || 'PLT',
+        tag: itemData.tag || 'Normal',
+        status: itemData.status || 'pendente', // 'pendente' | 'enviado' | 'falta' | 'dias'
+        sentQty: itemData.sentQty !== undefined ? Number(itemData.sentQty) : (Number(itemData.reqQty) || 1),
+        sentUnit: itemData.sentUnit || itemData.reqUnit || 'PLT',
+        days: itemData.days || '',
+        substitute: itemData.substitute || '',
+        createdAt: itemData.createdAt || Date.now()
+      };
+
+      if (isFirebaseReady && currentUser) {
+        await addDoc(getItemsCollectionRef(), payload);
+      } else {
+        payload.id = 'local_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+        state.items.push(payload);
+        renderAll();
+      }
+    }
+
+    async function updateSupplyItem(id, updates) {
+      if (isFirebaseReady && currentUser) {
+        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'supply_items', id);
+        await updateDoc(docRef, updates);
+      } else {
+        const idx = state.items.findIndex((i) => i.id === id);
+        if (idx !== -1) {
+          state.items[idx] = { ...state.items[idx], ...updates };
+          renderAll();
+        }
+      }
+    }
+
+    async function deleteSupplyItem(id) {
+      if (isFirebaseReady && currentUser) {
+        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'supply_items', id);
+        await deleteDoc(docRef);
+      } else {
+        state.items = state.items.filter((i) => i.id !== id);
+        renderAll();
+      }
+    }
+
+    async function registerMunicipality(name) {
+      const cleanName = name.trim();
+      if (!cleanName) return;
+      if (state.municipalities.some((m) => m.toLowerCase() === cleanName.toLowerCase())) {
+        showToast('Este município já está cadastrado.', 'info');
+        return;
+      }
+
+      if (isFirebaseReady && currentUser) {
+        await addDoc(getMunisCollectionRef(), { name: cleanName, createdAt: Date.now() });
+      } else {
+        state.municipalities.push(cleanName);
+        renderAll();
+      }
+    }
+
+    // =========================================================================
+    // 4. NAVEGAÇÃO ENTRE ABAS E CONTROLES DE UI
+    // =========================================================================
+    window.switchTab = function(tabName) {
+      if (tabName === 'analista' && !isAnalystUnlocked()) {
+        requestAnalystAction(() => switchTab('analista'), 'Acesso ao Painel de Check do Analista');
+        return;
+      }
+      state.activeTab = tabName;
+      ['bases', 'analista', 'apresentacao'].forEach((t) => {
+        const section = document.getElementById('view-' + t);
+        const btn = document.getElementById('tab-btn-' + t);
+        if (t === tabName) {
+          section.classList.remove('hidden');
+          btn.className = 'tab-btn flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-sky-500 text-slate-950 shadow-sm transition cursor-pointer';
+        } else {
+          section.classList.add('hidden');
+          btn.className = 'tab-btn flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-300 hover:text-white hover:bg-slate-800/70 transition cursor-pointer';
+        }
+      });
+      renderAll();
+    };
+
+    window.toggleFullscreenMode = function(enable) {
+      if (enable) {
+        document.body.classList.add('presentation-fullscreen');
+        if (document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        }
+      } else {
+        document.body.classList.remove('presentation-fullscreen');
+        if (document.fullscreenElement && document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        }
+      }
+    };
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const el = document.createElement('div');
+      const colors = {
+        success: 'bg-slate-900 text-white border-emerald-500',
+        error: 'bg-rose-950 text-white border-rose-500',
+        info: 'bg-slate-900 text-white border-sky-500'
+      };
+      const icons = {
+        success: 'fa-circle-check text-emerald-400',
+        error: 'fa-circle-xmark text-rose-400',
+        info: 'fa-circle-info text-sky-400'
+      };
+      el.className = `pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-xl border-l-4 text-xs font-bold transition-all duration-300 ${colors[type] || colors.success}`;
+      el.innerHTML = `<i class="fa-solid ${icons[type] || icons.success} text-sm"></i><span>${escapeHtml(message)}</span>`;
+      container.appendChild(el);
+      setTimeout(() => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(8px)';
+        setTimeout(() => el.remove(), 300);
+      }, 2800);
+    }
+
+    let confirmCallback = null;
+    function openConfirmModal(title, msg, onConfirm) {
+      document.getElementById('confirm-modal-title').textContent = title;
+      document.getElementById('confirm-modal-msg').textContent = msg;
+      confirmCallback = onConfirm;
+      const modal = document.getElementById('confirm-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    window.closeConfirmModal = function() {
+      const modal = document.getElementById('confirm-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      confirmCallback = null;
+    };
+
+    document.getElementById('confirm-modal-ok').addEventListener('click', async () => {
+      if (confirmCallback) await confirmCallback();
+      closeConfirmModal();
+    });
+
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // =========================================================================
+    // 5. LÓGICA DA ABA 1: SOLICITAÇÃO DAS BASES
+    // =========================================================================
+    window.onBaseMuniChange = function() {
+      state.selectedBaseMuni = document.getElementById('base-muni-select').value;
+      renderBasesView();
+    };
+
+    window.toggleNewMuniBox = function() {
+      const box = document.getElementById('new-muni-box');
+      if (box.classList.contains('hidden')) {
+        box.classList.remove('hidden');
+        box.classList.add('flex');
+        document.getElementById('new-muni-input').focus();
+      } else {
+        box.classList.add('hidden');
+        box.classList.remove('flex');
+      }
+    };
+
+    window.addNewMunicipality = async function() {
+      const input = document.getElementById('new-muni-input');
+      const val = input.value.trim();
+      if (!val) return;
+      await registerMunicipality(val);
+      state.selectedBaseMuni = val;
+      input.value = '';
+      toggleNewMuniBox();
+      renderAll();
+      showToast(`Base "${val}" adicionada!`);
+    };
+
+    window.handleAddSingleItem = async function(e) {
+      e.preventDefault();
+      const nameInput = document.getElementById('single-item-name');
+      const qtyInput = document.getElementById('single-item-qty');
+      const unitInput = document.getElementById('single-item-unit');
+      const tagRadio = document.querySelector('input[name="single-item-tag"]:checked');
+
+      const name = nameInput.value.trim();
+      if (!name) return;
+
+      await createSupplyItem({
+        municipality: state.selectedBaseMuni,
+        name: name,
+        reqQty: Number(qtyInput.value) || 1,
+        reqUnit: unitInput.value,
+        tag: tagRadio ? tagRadio.value : 'Normal'
+      });
+
+      nameInput.value = '';
+      qtyInput.value = '1';
+      nameInput.focus();
+      showToast(`Item adicionado para ${state.selectedBaseMuni}!`);
+    };
+
+    function parseLineToItem(rawLine, municipality, indexOffset = 0) {
+      let line = rawLine.trim().replace(/^[•\-*]\s*/, '');
+      if (!line) return null;
+
+      // Detectar tag de criticidade
+      let tag = 'Normal';
+      if (/cr[ií]tico/i.test(line)) tag = 'CRÍTICO';
+      else if (/zerado|❌/i.test(line)) tag = 'ZERADO';
+      else if (/repor|complementar|mandar mais/i.test(line)) tag = 'REPOR';
+
+      // Detectar quantidade e unidade no início (ex: "1 plt sukita lata" ou "1plt Skol litro" ou "20 cx Pepsi")
+      let reqQty = 1;
+      let reqUnit = 'PLT';
+      const qtyMatch = line.match(/^(\d+(?:[.,]\d+)?)\s*(plt|palete|paletes|cx|caixa|caixas)\b\s*(.*)$/i);
+      if (qtyMatch) {
+        reqQty = parseFloat(qtyMatch[1].replace(',', '.')) || 1;
+        const unitRaw = qtyMatch[2].toLowerCase();
+        reqUnit = unitRaw.startsWith('cx') || unitRaw.startsWith('caixa') ? 'CX' : 'PLT';
+        if (qtyMatch[3] && qtyMatch[3].trim()) {
+          line = qtyMatch[3].trim();
+        }
+      }
+
+      // Limpar anotações redundantes entre parênteses se já capturadas na tag
+      const cleanName = line.replace(/❌/g, '').trim();
+
+      return {
+        municipality,
+        name: cleanName,
+        reqQty,
+        reqUnit,
+        tag,
+        status: 'pendente',
+        sentQty: reqQty,
+        sentUnit: reqUnit,
+        days: '',
+        substitute: '',
+        createdAt: Date.now() + indexOffset
+      };
+    }
+
+    window.handleBulkPaste = async function() {
+      const textarea = document.getElementById('bulk-paste-textarea');
+      const raw = textarea.value;
+      if (!raw.trim()) {
+        showToast('Cole ao menos um item na caixa de texto.', 'info');
+        return;
+      }
+
+      const lines = raw.split(/\r?\n/).filter((l) => l.trim().length > 0);
+      let count = 0;
+      for (let i = 0; i < lines.length; i++) {
+        const parsed = parseLineToItem(lines[i], state.selectedBaseMuni, i);
+        if (parsed) {
+          await createSupplyItem(parsed);
+          count++;
+        }
+      }
+
+      textarea.value = '';
+      showToast(`${count} itens adicionados em ${state.selectedBaseMuni}!`);
+    };
+
+    window.removeBaseItem = function(id) {
+      requestAnalystAction(() => {
+        deleteSupplyItem(id);
+        showToast('Item removido pelo analista.', 'info');
+      }, 'Senha necessária para excluir item da base');
+    };
+
+    window.editBaseItemInline = async function(id, field, value) {
+      if (field === 'reqQty') {
+        const num = parseFloat(value) || 1;
+        await updateSupplyItem(id, { reqQty: num, sentQty: num });
+      } else if (field === 'reqUnit') {
+        await updateSupplyItem(id, { reqUnit: value, sentUnit: value });
+      } else if (field === 'name') {
+        if (value.trim()) await updateSupplyItem(id, { name: value.trim() });
+      }
+    };
+
+    window.confirmClearMuniItems = function() {
+      const muni = state.selectedBaseMuni;
+      const itemsToClear = state.items.filter((i) => i.municipality === muni);
+      if (itemsToClear.length === 0) {
+        showToast(`Não há itens para limpar em ${muni}.`, 'info');
+        return;
+      }
+      openConfirmModal(
+        `Limpar pedidos de ${muni}?`,
+        `Isso removerá todos os ${itemsToClear.length} itens lançados para ${muni}. Essa ação sincroniza imediatamente para todos.`,
+        async () => {
+          for (const item of itemsToClear) {
+            await deleteSupplyItem(item.id);
+          }
+          showToast(`Lista de ${muni} limpa!`, 'info');
+        }
+      );
+    };
+
+    // Carga inicial pré-carregada com a lista exata enviada pelo usuário
+    window.seedInitialUserList = function() {
+      openConfirmModal(
+        'Importar Lista Inicial das 6 Bases?',
+        'Serão carregados os itens iniciais de NON, Autazes, Barcelos, Careiro, Manaquiri e SGC para você testar o fluxo completo.',
+        async () => {
+          const rawSeed = {
+            NON: [
+              'AP 1L', 'Skol 1L', 'Pepsi 2L', 'Pepsi zero 2L', 'Baré 2L', 'Baré LT',
+              'Sukita 2L', 'GCA zero LT', 'Michelob', 'Skol multipack', 'Stella pure gold',
+              'Subzero', 'Coronita', 'Tônica', 'Água de 200ML e de 500ML'
+            ],
+            Autazes: [
+              'Cerveja Long Neck', 'Stella Artois (Zerado)', 'Beats', 'Beats Red Mix (CRÍTICO)',
+              'Pepsi 1L (CRÍTICO - FINAL)', 'Sukita 1L (CRÍTICO - FINAL)', 'Pepsi Black (Zerado)',
+              'Antartica Zero', 'Baré 2L', 'Água Tônica', 'Pepsi Lata', 'Budweiser 269ml',
+              'Subzero 269ml', 'Skol LT', 'Skol Multipack', 'Michelob Lata', 'Skol 1L (Repor)',
+              'AP 1L (Complementar)', 'Redbull com 6 ❌', 'Tang Sabores (Zerado)', 'Gatorade (Sabores)'
+            ],
+            Barcelos: [
+              'Original lata 269ml', 'Stella pure gold 350ml', 'Corona lata 350ml',
+              'Original 600ml', 'Antártica 600ml', 'Brahma 600ml', 'Original 1L',
+              'Original 300ml', 'Pepsi lata 350ml', 'Sukita lata 350ml', 'Pepsi 1L',
+              'Guaraná Antártica 1L', 'Sukita 2L', 'Água 2L'
+            ],
+            Careiro: [
+              'A.P 269', 'Chopp 269', 'Mdm 350', 'Pepsi 1L', 'Redbull', 'Redbull sabores',
+              'Tônica', 'Stella lata', 'Água 370 e 510', 'Sukita lata', 'Sukita 1L',
+              'Baré 1L', 'Original 300', 'Skol litrão'
+            ],
+            Manaquiri: [
+              '1 plt sukita lata', '1 plt baré 1L', '1 plt Pepsi 1L', '1 plt Skol litro',
+              '1 plt Antarctica litro', 'Red Bull', 'Água 370 - 510', 'Tônica',
+              '1 plt michelob long', 'GT long'
+            ],
+            SGC: [
+              'Gca p1 zero', 'Gca zero p2', 'Gca zero lata', 'Spaten long', 'Spaten lata',
+              'Stella normal long', 'Stella pure gold lata', 'Bud lata 269', 'Gca p1',
+              'Gatorades (mandar mais)', 'Red bull (mandar mais)', 'Pepsi black lata',
+              'Soda lata', 'Água p2', 'Spaten 600ml', 'Original litrinho 300ml', 'Corona cero 330ml'
+            ]
+          };
+
+          let offset = 0;
+          for (const [muni, list] of Object.entries(rawSeed)) {
+            for (const line of list) {
+              const parsed = parseLineToItem(line, muni, offset++);
+              if (parsed) await createSupplyItem(parsed);
+            }
+          }
+          showToast('Carga inicial das 6 bases importada com sucesso!');
+        }
+      );
+    };
+
+    function renderBasesView() {
+      const select = document.getElementById('base-muni-select');
+      select.innerHTML = state.municipalities
+        .map((m) => `<option value="${escapeHtml(m)}" ${m === state.selectedBaseMuni ? 'selected' : ''}>${escapeHtml(m)}</option>`)
+        .join('');
+
+      document.getElementById('base-list-muni-title').textContent = state.selectedBaseMuni;
+
+      const muniItems = state.items.filter((i) => i.municipality === state.selectedBaseMuni);
+      document.getElementById('base-list-count').textContent = `${muniItems.length} ${muniItems.length === 1 ? 'item' : 'itens'}`;
+
+      const listContainer = document.getElementById('base-items-list');
+      if (muniItems.length === 0) {
+        listContainer.innerHTML = `
+          <div class="py-16 px-4 text-center">
+            <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center text-xl mx-auto mb-3">
+              <i class="fa-solid fa-box-open"></i>
+            </div>
+            <p class="text-sm font-bold text-slate-700">Nenhum pedido lançado para ${escapeHtml(state.selectedBaseMuni)}</p>
+            <p class="text-xs text-slate-500 mt-1">Adicione itens ao lado ou use "Importar Lista Rápida".</p>
+          </div>
+        `;
+        return;
+      }
+
+      listContainer.innerHTML = muniItems.map((item) => {
+        const tagBadge = getTagBadgeHtml(item.tag);
+        const analystStatusBadge = getStatusSummaryBadge(item);
+
+        return `
+          <div class="p-3 hover:bg-slate-50 rounded-xl transition flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex-grow min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <input type="text" value="${escapeHtml(item.name)}" onchange="editBaseItemInline('${item.id}', 'name', this.value)" class="font-bold text-sm text-slate-900 bg-transparent hover:bg-white focus:bg-white border border-transparent focus:border-sky-400 rounded-lg px-1.5 py-0.5 outline-none truncate max-w-xs sm:max-w-sm">
+                ${tagBadge}
+              </div>
+              <div class="mt-1 flex items-center gap-2 flex-wrap text-xs">
+                ${analystStatusBadge}
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 shrink-0">
+              <div class="flex items-center bg-slate-100 rounded-xl p-1 border border-slate-200">
+                <input type="number" min="0.5" step="any" value="${item.reqQty}" onchange="editBaseItemInline('${item.id}', 'reqQty', this.value)" class="w-14 text-center bg-white rounded-lg py-1 text-xs font-extrabold text-slate-800 border border-slate-200 outline-none">
+                <select onchange="editBaseItemInline('${item.id}', 'reqUnit', this.value)" class="bg-transparent text-xs font-bold text-slate-700 px-1.5 py-1 outline-none cursor-pointer">
+                  <option value="PLT" ${item.reqUnit === 'PLT' ? 'selected' : ''}>PLT</option>
+                  <option value="CX" ${item.reqUnit === 'CX' ? 'selected' : ''}>CX</option>
+                </select>
+              </div>
+              <button onclick="removeBaseItem('${item.id}')" title="Excluir item (Requer senha do analista)" class="w-8 h-8 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition cursor-pointer">
+                <i class="fa-solid fa-trash-can text-xs"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function getTagBadgeHtml(tag) {
+      if (!tag || tag === 'Normal') return '';
+      if (tag === 'CRÍTICO') {
+        return `<span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-rose-100 text-rose-700 uppercase tracking-wide">Crítico</span>`;
+      }
+      if (tag === 'ZERADO') {
+        return `<span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-100 text-amber-800 uppercase tracking-wide">Zerado</span>`;
+      }
+      return `<span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-sky-100 text-sky-700 uppercase tracking-wide">${escapeHtml(tag)}</span>`;
+    }
+
+    function getStatusSummaryBadge(item) {
+      if (item.status === 'enviado') {
+        return `<span class="inline-flex items-center gap-1 text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+          <i class="fa-solid fa-check"></i> Enviado: ${item.sentQty} ${item.sentUnit}
+        </span>`;
+      }
+      if (item.status === 'falta') {
+        const subText = item.substitute ? ` • Sub: ${escapeHtml(item.substitute)}` : '';
+        return `<span class="inline-flex items-center gap-1 text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+          <i class="fa-solid fa-xmark"></i> Falta na Fábrica${subText}
+        </span>`;
+      }
+      if (item.status === 'dias') {
+        const d = item.days ? `${item.days} dias` : 'X dias';
+        return `<span class="inline-flex items-center gap-1 text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+          <i class="fa-solid fa-clock"></i> Envio em ${escapeHtml(d)} (${item.sentQty} ${item.sentUnit})
+        </span>`;
+      }
+      return `<span class="text-slate-400 font-medium"><i class="fa-regular fa-hourglass mr-1"></i>Aguardando triagem do analista</span>`;
+    }
+
+    // =========================================================================
+    // 6. LÓGICA DA ABA 2: PAINEL DO ANALISTA (TRIAGEM & CHECK)
+    // =========================================================================
+    window.setAnalystMuniFilter = function(muni) {
+      state.analystFilterMuni = muni;
+      renderAnalystView();
+    };
+
+    window.setAnalystItemStatus = async function(id, newStatus) {
+      const item = state.items.find((i) => i.id === id);
+      if (!item) return;
+
+      const updates = { status: newStatus };
+      if ((newStatus === 'enviado' || newStatus === 'dias') && (!item.sentQty || item.sentQty <= 0)) {
+        updates.sentQty = item.reqQty || 1;
+        updates.sentUnit = item.reqUnit || 'PLT';
+      }
+      if (newStatus === 'dias' && !item.days) {
+        updates.days = '3';
+      }
+
+      await updateSupplyItem(id, updates);
+    };
+
+    window.updateAnalystField = async function(id, field, value) {
+      const updates = {};
+      if (field === 'sentQty') {
+        updates.sentQty = parseFloat(value) || 0;
+      } else {
+        updates[field] = value;
+      }
+      await updateSupplyItem(id, updates);
+    };
+
+    window.renderAnalystView = function() {
+      // Renderiza Pills de Filtro de Município
+      const pillsContainer = document.getElementById('analyst-muni-pills');
+      const allCount = state.items.length;
+      const pills = [
+        { key: 'ALL', label: `Todos (${allCount})` },
+        ...state.municipalities.map((m) => {
+          const c = state.items.filter((i) => i.municipality === m).length;
+          return { key: m, label: `${m} (${c})` };
+        })
+      ];
+
+      pillsContainer.innerHTML = pills.map((p) => {
+        const active = state.analystFilterMuni === p.key;
+        return `<button onclick="setAnalystMuniFilter('${escapeHtml(p.key)}')" class="px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+          active
+            ? 'bg-slate-900 text-white shadow-xs'
+            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+        }">${escapeHtml(p.label)}</button>`;
+      }).join('');
+
+      // Filtragem de itens
+      const searchTerm = (document.getElementById('analyst-search-input').value || '').toLowerCase().trim();
+      const statusFilter = document.getElementById('analyst-status-filter').value;
+
+      const filteredByMuni = state.analystFilterMuni === 'ALL'
+        ? state.items
+        : state.items.filter((i) => i.municipality === state.analystFilterMuni);
+
+      // Atualiza mini contadores do filtro atual
+      document.getElementById('stat-analyst-pendente').textContent = filteredByMuni.filter((i) => i.status === 'pendente').length;
+      document.getElementById('stat-analyst-enviado').textContent = filteredByMuni.filter((i) => i.status === 'enviado').length;
+      document.getElementById('stat-analyst-falta').textContent = filteredByMuni.filter((i) => i.status === 'falta').length;
+      document.getElementById('stat-analyst-dias').textContent = filteredByMuni.filter((i) => i.status === 'dias').length;
+
+      const finalItems = filteredByMuni.filter((item) => {
+        const matchSearch = !searchTerm || item.name.toLowerCase().includes(searchTerm) || item.municipality.toLowerCase().includes(searchTerm);
+        const matchStatus = statusFilter === 'ALL' || item.status === statusFilter;
+        return matchSearch && matchStatus;
+      });
+
+      const container = document.getElementById('analyst-items-container');
+      if (finalItems.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white rounded-2xl p-12 text-center border border-slate-200">
+            <p class="text-sm font-bold text-slate-700">Nenhum item encontrado com os filtros selecionados.</p>
+            <p class="text-xs text-slate-500 mt-1">Altere o filtro de status ou adicione itens na Aba 1.</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = finalItems.map((item) => {
+        const borderClass =
+          item.status === 'enviado' ? 'border-l-4 border-l-emerald-500 bg-emerald-50/20' :
+          item.status === 'falta' ? 'border-l-4 border-l-rose-500 bg-rose-50/20' :
+          item.status === 'dias' ? 'border-l-4 border-l-amber-500 bg-amber-50/20' :
+          'border-l-4 border-l-slate-300 bg-white';
+
+        const showQtyBox = item.status === 'enviado' || item.status === 'dias';
+        const showDaysBox = item.status === 'dias';
+        const showSubBox = item.status === 'falta' || item.status === 'dias';
+
+        return `
+          <div class="rounded-2xl p-4 shadow-xs border border-slate-200 ${borderClass} transition-all">
+            <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+              
+              <!-- Bloco 1: Identificação do Pedido da Base -->
+              <div class="flex items-start sm:items-center gap-3 min-w-0 xl:w-5/12">
+                <span class="px-2.5 py-1 rounded-lg text-[11px] font-mono-tech font-bold bg-slate-900 text-white shrink-0 uppercase">
+                  ${escapeHtml(item.municipality)}
+                </span>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-bold text-sm sm:text-base text-slate-900">${escapeHtml(item.name)}</span>
+                    ${getTagBadgeHtml(item.tag)}
+                  </div>
+                  <p class="text-xs text-slate-500 mt-0.5">
+                    Pedido da base: <strong class="text-slate-700">${item.reqQty} ${escapeHtml(item.reqUnit)}</strong>
+                  </p>
+                </div>
+              </div>
+
+              <!-- Bloco 2: Botões de Check Rápido (1 Clique) -->
+              <div class="flex flex-wrap items-center gap-2 shrink-0">
+                <button onclick="setAnalystItemStatus('${item.id}', 'enviado')" class="px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition cursor-pointer ${
+                  item.status === 'enviado'
+                    ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-600/30'
+                    : 'bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50'
+                }">
+                  <i class="fa-solid fa-check"></i> Enviado
+                </button>
+
+                <button onclick="setAnalystItemStatus('${item.id}', 'falta')" class="px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition cursor-pointer ${
+                  item.status === 'falta'
+                    ? 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-600/30'
+                    : 'bg-white text-rose-700 border border-rose-200 hover:bg-rose-50'
+                }">
+                  <i class="fa-solid fa-xmark"></i> Falta Fábrica
+                </button>
+
+                <button onclick="setAnalystItemStatus('${item.id}', 'dias')" class="px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition cursor-pointer ${
+                  item.status === 'dias'
+                    ? 'bg-amber-500 text-slate-950 shadow-sm ring-2 ring-amber-500/30'
+                    : 'bg-white text-amber-700 border border-amber-200 hover:bg-amber-50'
+                }">
+                  <i class="fa-solid fa-clock"></i> Enviar em X dias
+                </button>
+              </div>
+
+              <!-- Bloco 3: Campos Dinâmicos de Envio Real / Prazo / Substituto -->
+              <div class="flex flex-wrap items-center gap-2 xl:justify-end xl:w-4/12">
+                ${showQtyBox ? `
+                  <div class="flex items-center bg-white border border-slate-300 rounded-xl px-2 py-1 shadow-2xs">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase mr-1.5">Envio:</span>
+                    <input type="number" min="0" step="any" value="${item.sentQty}" onchange="updateAnalystField('${item.id}', 'sentQty', this.value)" class="w-14 text-center font-extrabold text-xs text-slate-900 bg-slate-50 rounded-lg py-1 border border-slate-200 outline-none focus:border-sky-500">
+                    <select onchange="updateAnalystField('${item.id}', 'sentUnit', this.value)" class="ml-1 text-xs font-bold text-slate-800 bg-transparent outline-none cursor-pointer">
+                      <option value="PLT" ${item.sentUnit === 'PLT' ? 'selected' : ''}>PLT</option>
+                      <option value="CX" ${item.sentUnit === 'CX' ? 'selected' : ''}>CX</option>
+                    </select>
+                  </div>
+                ` : ''}
+
+                ${showDaysBox ? `
+                  <div class="flex items-center bg-amber-50 border border-amber-300 rounded-xl px-2.5 py-1">
+                    <span class="text-[10px] font-bold text-amber-800 uppercase mr-1.5">Em:</span>
+                    <input type="number" min="1" max="60" value="${escapeHtml(item.days)}" placeholder="3" onchange="updateAnalystField('${item.id}', 'days', this.value)" class="w-11 text-center font-extrabold text-xs text-amber-950 bg-white rounded-lg py-1 border border-amber-300 outline-none">
+                    <span class="text-[11px] font-bold text-amber-800 ml-1">dias</span>
+                  </div>
+                ` : ''}
+
+                ${showSubBox ? `
+                  <div class="flex items-center bg-white border border-slate-300 rounded-xl px-2.5 py-1 flex-grow sm:flex-grow-0">
+                    <i class="fa-solid fa-right-left text-slate-400 text-[10px] mr-1.5"></i>
+                    <input type="text" value="${escapeHtml(item.substitute)}" placeholder="Sugestão substituto..." onchange="updateAnalystField('${item.id}', 'substitute', this.value)" class="text-xs font-medium text-slate-800 bg-transparent outline-none w-40">
+                  </div>
+                ` : ''}
+              </div>
+
+            </div>
+          </div>
+        `;
+      }).join('');
+    };
+
+    // =========================================================================
+    // 7. LÓGICA DA ABA 3: APRESENTAÇÃO AO VIVO (VISUALIZAÇÃO EXECUTIVA)
+    // =========================================================================
+    window.setPresentationMode = function(mode) {
+      state.presentationMode = mode;
+      renderPresentationView();
+    };
+
+    window.changeSlideIndex = function(delta) {
+      const total = state.municipalities.length;
+      if (total === 0) return;
+      state.currentSlideIdx = (state.currentSlideIdx + delta + total) % total;
+      renderPresentationView();
+    };
+
+    window.exportCSV = function() {
+      if (state.items.length === 0) {
+        showToast('Não há itens para exportar.', 'info');
+        return;
+      }
+      const headers = ['Municipio', 'Item', 'Qtd_Solicitada', 'Unid_Solicitada', 'Criticidade', 'Status', 'Qtd_Real_Envio', 'Unid_Envio', 'Prazo_Dias', 'Substituto_Sugerido'];
+      const rows = state.items.map((i) => [
+        i.municipality,
+        `"${String(i.name).replace(/"/g, '""')}"`,
+        i.reqQty,
+        i.reqUnit,
+        i.tag,
+        i.status === 'enviado' ? 'Enviado' : i.status === 'falta' ? 'Falta na Fabrica' : i.status === 'dias' ? 'Enviar em X dias' : 'Pendente',
+        i.sentQty || 0,
+        i.sentUnit || '',
+        i.days || '',
+        `"${String(i.substitute || '').replace(/"/g, '""')}"`
+      ]);
+      const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map((r) => r.join(';'))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `abastecimento_municipios_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Resumo exportado em CSV!');
+    };
+
+    function renderPresentationView() {
+      // Atualiza botões de modo Grid vs Slide
+      const gridBtn = document.getElementById('pres-mode-grid-btn');
+      const slideBtn = document.getElementById('pres-mode-slide-btn');
+      const slideNav = document.getElementById('slide-nav-controls');
+
+      if (state.presentationMode === 'grid') {
+        gridBtn.className = 'px-3.5 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-white shadow-2xs transition cursor-pointer';
+        slideBtn.className = 'px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 transition cursor-pointer';
+        slideNav.classList.add('hidden');
+        slideNav.classList.remove('flex');
+      } else {
+        slideBtn.className = 'px-3.5 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-white shadow-2xs transition cursor-pointer';
+        gridBtn.className = 'px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 transition cursor-pointer';
+        slideNav.classList.remove('hidden');
+        slideNav.classList.add('flex');
+      }
+
+      // Cálculo dos KPIs Gerais
+      const enviados = state.items.filter((i) => i.status === 'enviado');
+      const faltas = state.items.filter((i) => i.status === 'falta');
+      const emDias = state.items.filter((i) => i.status === 'dias');
+
+      const sumVol = (list, unit) => list.filter((i) => i.sentUnit === unit).reduce((acc, i) => acc + (Number(i.sentQty) || 0), 0);
+
+      document.getElementById('kpi-total').textContent = state.items.length;
+      document.getElementById('kpi-enviado').textContent = enviados.length;
+      document.getElementById('kpi-enviado-vol').textContent = `${sumVol(enviados, 'PLT')} PLT • ${sumVol(enviados, 'CX')} CX confirmados`;
+      document.getElementById('kpi-falta').textContent = faltas.length;
+      document.getElementById('kpi-dias').textContent = emDias.length;
+      document.getElementById('kpi-dias-vol').textContent = `${sumVol(emDias, 'PLT')} PLT • ${sumVol(emDias, 'CX')} CX programados`;
+
+      // Define quais municípios exibir (Todos ou Slide Atual)
+      let munisToRender = state.municipalities;
+      if (state.presentationMode === 'slide' && state.municipalities.length > 0) {
+        if (state.currentSlideIdx >= state.municipalities.length) state.currentSlideIdx = 0;
+        const activeMuni = state.municipalities[state.currentSlideIdx];
+        munisToRender = [activeMuni];
+        document.getElementById('slide-indicator-text').textContent = `${state.currentSlideIdx + 1} / ${state.municipalities.length} — ${activeMuni}`;
+      }
+
+      const container = document.getElementById('presentation-cards-container');
+      container.innerHTML = munisToRender.map((muni) => {
+        const muniItems = state.items.filter((i) => i.municipality === muni);
+        const listEnviado = muniItems.filter((i) => i.status === 'enviado');
+        const listFalta = muniItems.filter((i) => i.status === 'falta');
+        const listDias = muniItems.filter((i) => i.status === 'dias');
+        const listPendente = muniItems.filter((i) => i.status === 'pendente');
+
+        const statusBadge = listFalta.length > 0
+          ? `<span class="px-3 py-1 rounded-full text-xs font-mono-tech font-bold bg-rose-100 text-rose-700 border border-rose-200">ATENÇÃO: ${listFalta.length} EM FALTA / ${muniItems.length} TOTAL</span>`
+          : `<span class="px-3 py-1 rounded-full text-xs font-mono-tech font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">${muniItems.length} ITENS MAPEADOS</span>`;
+
+        return `
+          <div class="print-break bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200 space-y-5">
+            <!-- Cabeçalho do Município -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-100">
+              <div class="flex items-center gap-3">
+                <span class="w-10 h-10 rounded-xl bg-slate-900 text-sky-400 flex items-center justify-center font-mono-tech font-bold text-sm">
+                  ${escapeHtml(muni.slice(0, 3).toUpperCase())}
+                </span>
+                <div>
+                  <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Município: ${escapeHtml(muni)}</h2>
+                  ${listPendente.length > 0 ? `<p class="text-xs text-slate-400 font-medium">${listPendente.length} item(ns) ainda aguardando triagem</p>` : ''}
+                </div>
+              </div>
+              <div>${statusBadge}</div>
+            </div>
+
+            <!-- Grid Executivo de 3 Colunas -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
+              
+              <!-- Coluna 1: O que Enviei (Verde) -->
+              <div class="bg-emerald-50/40 rounded-2xl p-5 border border-emerald-200/80 flex flex-col">
+                <div class="flex items-center justify-between mb-4 pb-2.5 border-b border-emerald-200/60">
+                  <h3 class="text-base font-extrabold text-emerald-800 flex items-center gap-2">
+                    <i class="fa-solid fa-circle-check text-emerald-600"></i> O que Enviei
+                  </h3>
+                  <span class="bg-emerald-600 text-white text-xs font-extrabold px-2.5 py-0.5 rounded-full">${listEnviado.length}</span>
+                </div>
+                <ul class="space-y-2.5 flex-grow">
+                  ${listEnviado.length === 0
+                    ? `<li class="text-sm text-slate-400 italic py-2">Nenhum item confirmado ainda</li>`
+                    : listEnviado.map((item) => `
+                      <li class="bg-white rounded-xl px-3.5 py-2.5 shadow-2xs border border-emerald-100 flex items-center justify-between gap-2">
+                        <span class="font-bold text-sm text-slate-800">${escapeHtml(item.name)}</span>
+                        <span class="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-mono-tech font-bold text-xs shrink-0">
+                          ${item.sentQty} ${escapeHtml(item.sentUnit)}
+                        </span>
+                      </li>
+                    `).join('')}
+                </ul>
+              </div>
+
+              <!-- Coluna 2: Falta na Fábrica (Vermelho) -->
+              <div class="bg-rose-50/40 rounded-2xl p-5 border border-rose-200/80 flex flex-col">
+                <div class="flex items-center justify-between mb-4 pb-2.5 border-b border-rose-200/60">
+                  <h3 class="text-base font-extrabold text-rose-800 flex items-center gap-2">
+                    <i class="fa-solid fa-triangle-exclamation text-rose-600"></i> Falta na Fábrica
+                  </h3>
+                  <span class="bg-rose-600 text-white text-xs font-extrabold px-2.5 py-0.5 rounded-full">${listFalta.length}</span>
+                </div>
+                <ul class="space-y-2.5 flex-grow">
+                  ${listFalta.length === 0
+                    ? `<li class="text-sm text-slate-400 italic py-2">Nenhuma ruptura registrada</li>`
+                    : listFalta.map((item) => `
+                      <li class="bg-white rounded-xl px-3.5 py-2.5 shadow-2xs border border-rose-100 space-y-1.5">
+                        <div class="flex items-center justify-between gap-2">
+                          <span class="font-bold text-sm text-slate-900">${escapeHtml(item.name)}</span>
+                          <span class="text-[11px] font-semibold text-rose-600 shrink-0">Pedido: ${item.reqQty} ${escapeHtml(item.reqUnit)}</span>
+                        </div>
+                        ${item.substitute ? `
+                          <div class="bg-rose-50 text-rose-800 text-xs font-semibold px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 border border-rose-200/60">
+                            <i class="fa-solid fa-right-left text-[10px]"></i>
+                            <span>Substituto: <strong>${escapeHtml(item.substitute)}</strong></span>
+                          </div>
+                        ` : ''}
+                      </li>
+                    `).join('')}
+                </ul>
+              </div>
+
+              <!-- Coluna 3: Envio em X Dias (Âmbar) -->
+              <div class="bg-amber-50/40 rounded-2xl p-5 border border-amber-200/80 flex flex-col">
+                <div class="flex items-center justify-between mb-4 pb-2.5 border-b border-amber-200/60">
+                  <h3 class="text-base font-extrabold text-amber-800 flex items-center gap-2">
+                    <i class="fa-solid fa-calendar-day text-amber-600"></i> Envio em X Dias
+                  </h3>
+                  <span class="bg-amber-500 text-slate-950 text-xs font-extrabold px-2.5 py-0.5 rounded-full">${listDias.length}</span>
+                </div>
+                <ul class="space-y-2.5 flex-grow">
+                  ${listDias.length === 0
+                    ? `<li class="text-sm text-slate-400 italic py-2">Sem envios futuros programados</li>`
+                    : listDias.map((item) => {
+                      const prazo = item.days ? `Em ${item.days} dias` : 'A definir';
+                      return `
+                        <li class="bg-white rounded-xl px-3.5 py-2.5 shadow-2xs border border-amber-100 space-y-1.5">
+                          <div class="flex items-center justify-between gap-2">
+                            <span class="font-bold text-sm text-slate-800">${escapeHtml(item.name)}</span>
+                            <span class="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-800 font-mono-tech font-bold text-xs shrink-0">
+                              ${item.sentQty} ${escapeHtml(item.sentUnit)}
+                            </span>
+                          </div>
+                          <div class="flex items-center justify-between gap-2 flex-wrap">
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-amber-100 text-amber-900 font-bold text-xs">
+                              <i class="fa-regular fa-clock"></i> ${escapeHtml(prazo)}
+                            </span>
+                            ${item.substitute ? `<span class="text-[11px] font-semibold text-slate-600">Obs: ${escapeHtml(item.substitute)}</span>` : ''}
+                          </div>
+                        </li>
+                      `;
+                    }).join('')}
+                </ul>
+              </div>
+
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // =========================================================================
+    // 8. RENDERIZAÇÃO GLOBAL & BOOTSTRAP
+    // =========================================================================
+    function renderAll() {
+      // Atualiza badge de pendências na aba do analista
+      const pendingCount = state.items.filter((i) => i.status === 'pendente').length;
+      const badge = document.getElementById('pending-counter-badge');
+      if (pendingCount > 0) {
+        badge.textContent = pendingCount;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+
+      renderBasesView();
+      renderAnalystView();
+      renderPresentationView();
+    }
+
+    // Inicializa na aba 1 e conecta ao Firebase
+    updateLockUI();
+    switchTab('bases');
+    initFirebase();
+  </script>
+</body>
+</html>
