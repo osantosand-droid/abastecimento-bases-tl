@@ -186,7 +186,7 @@
           </div>
         </div>
 
-        <!-- Coluna Direita: Pedidos Já Enviados para o Analista -->
+        <!-- Coluna Direita: Pedidos Ativos + Pendências Anteriores -->
         <div class="lg:col-span-6">
           <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 min-h-[620px] flex flex-col">
             <div class="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-slate-100">
@@ -194,12 +194,12 @@
                 <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
                   <span>✅</span> Pedidos Enviados — <span id="currentBaseTitle" class="text-sky-600">NON</span>
                 </h3>
-                <p class="text-xs text-slate-500">Se esqueceu algum item, basta adicionar no rascunho ao lado e enviar novamente</p>
+                <p class="text-xs text-slate-500">Faltas do pedido anterior permanecem aqui automaticamente até serem enviadas</p>
               </div>
               <div class="flex items-center gap-2">
                 <span id="baseItemCount" class="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700">0 itens</span>
-                <button onclick="protectedAction('clearCurrentBase')" class="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg transition border border-transparent hover:border-rose-200" title="Requer senha do analista">
-                  🔒 🗑️ Limpar Base
+                <button onclick="protectedAction('closeBaseCycle')" class="px-2.5 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition border border-indigo-200" title="Arquiva os enviados e mantém os itens em falta como pendentes">
+                  🔒 🔄 Encerrar Ciclo (Manter Faltas)
                 </button>
               </div>
             </div>
@@ -243,8 +243,8 @@
           <div class="flex flex-wrap items-center gap-2" id="analystCityFilters">
           </div>
 
-          <div class="flex items-center gap-2 w-full sm:w-auto">
-            <div class="relative flex-1 sm:w-64">
+          <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <div class="relative flex-1 sm:w-56">
               <input type="text" id="analystSearchInput" oninput="renderAnalystView()" placeholder="Buscar SKU ou responsável..." class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-sky-500 outline-none">
               <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -252,18 +252,25 @@
             </div>
             <select id="analystStatusFilter" onchange="renderAnalystView()" class="px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 outline-none">
               <option value="all">Todos os Status</option>
-              <option value="pendente">⏳ Pendentes</option>
+              <option value="anterior">⚠️ Pendentes Anteriores</option>
+              <option value="pendente">⏳ Pendentes (Todos)</option>
               <option value="enviado">✅ Enviados</option>
               <option value="falta">❌ Sem Estoque/Falta</option>
               <option value="programado">🕒 Em X Dias</option>
             </select>
+            <button onclick="closeBaseCycle(state.analystCityFilter)" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1.5" title="Limpa apenas os Enviados e mantém as Faltas como pendentes para o próximo pedido">
+              <span>🔄</span> Encerrar Ciclo
+            </button>
           </div>
         </div>
 
         <!-- Mini KPIs -->
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
           <div class="bg-slate-50 rounded-xl p-3 border border-slate-200/70 flex items-center justify-between">
-            <span class="text-xs font-semibold text-slate-500">Aguardando Check</span>
+            <div>
+              <span class="text-xs font-semibold text-slate-500 block">Aguardando Check</span>
+              <span id="kpi-anterior-sub" class="text-[11px] font-bold text-purple-700">0 de pedido anterior</span>
+            </div>
             <span id="kpi-pendente" class="text-lg font-extrabold text-slate-800">0</span>
           </div>
           <div class="bg-emerald-50/70 rounded-xl p-3 border border-emerald-200/70 flex items-center justify-between">
@@ -402,7 +409,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getFirestore, collection, doc, updateDoc, deleteDoc, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // =========================================================================
     // 1. CONFIGURAÇÃO DO FIREBASE (PROJETO: abastecimento-bases-tl)
@@ -438,6 +445,9 @@
       pendingAction: null
     };
 
+    // Expose state getter for inline handlers
+    window.state = state;
+
     // =========================================================================
     // 2. SISTEMA DE SENHA DO ANALISTA
     // =========================================================================
@@ -467,7 +477,7 @@
     };
 
     function executeProtectedAction(actionName, payload) {
-      if (actionName === "clearCurrentBase") window.clearCurrentBase();
+      if (actionName === "closeBaseCycle") window.closeBaseCycle(payload);
       if (actionName === "deleteItem") window.deleteItem(payload);
     }
 
@@ -708,7 +718,9 @@
       sendBtn.disabled = true;
       sendBtn.innerHTML = `<span>⏳</span> Enviando pedido...`;
 
-      const horaEnvio = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      const agora = new Date();
+      const horaEnvio = agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      const dataPedido = agora.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 
       try {
         if (state.useFirebase && state.db) {
@@ -723,6 +735,9 @@
               prioridade: item.prioridade || "normal",
               responsavel: responsavel,
               horaEnvio: horaEnvio,
+              dataPedido: dataPedido,
+              pendenteAnterior: false,
+              dataPedidoAnterior: "",
               status: "pendente",
               qtdAtendida: Number(item.qtdSolicitada) || 1,
               unidadeAtendida: item.unidade || "PLT",
@@ -743,6 +758,9 @@
               prioridade: item.prioridade || "normal",
               responsavel: responsavel,
               horaEnvio: horaEnvio,
+              dataPedido: dataPedido,
+              pendenteAnterior: false,
+              dataPedidoAnterior: "",
               status: "pendente",
               qtdAtendida: Number(item.qtdSolicitada) || 1,
               unidadeAtendida: item.unidade || "PLT",
@@ -754,7 +772,6 @@
           saveLocal();
         }
 
-        // Limpa apenas o rascunho desta base após enviar com sucesso
         const totalSent = draft.length;
         state.draftsByBase[state.selectedBase] = [];
         saveDraftsToStorage();
@@ -768,7 +785,7 @@
     };
 
     // =========================================================================
-    // 5. OPERAÇÕES DO ANALISTA E LIMPEZA
+    // 5. OPERAÇÕES DO ANALISTA E VIRADA DE CICLO (MANTER FALTAS)
     // =========================================================================
     window.updateItemField = async (id, updates) => {
       if (state.useFirebase && state.db) {
@@ -794,22 +811,75 @@
       showToast("Item removido.", "🗑️");
     };
 
-    window.clearCurrentBase = async () => {
-      const baseItems = state.items.filter(i => i.municipio === state.selectedBase);
-      if (baseItems.length === 0) return;
+    window.closeBaseCycle = async (targetCity = null) => {
+      const cityToClose = targetCity || state.selectedBase;
+      const scopeItems = cityToClose === "ALL"
+        ? state.items
+        : state.items.filter(i => i.municipio === cityToClose);
+
+      if (scopeItems.length === 0) {
+        showToast("Não há itens ativos para encerrar o ciclo.", "ℹ️");
+        return;
+      }
+
+      const enviados = scopeItems.filter(i => i.status === "enviado");
+      const faltas = scopeItems.filter(i => i.status === "falta");
+      const programados = scopeItems.filter(i => i.status === "programado");
+
+      if (enviados.length === 0 && faltas.length === 0) {
+        showToast("Nenhum item marcado como 'Enviado' ou 'Sem Estoque' para virar o ciclo.", "⚠️");
+        return;
+      }
+
+      const labelEscopo = cityToClose === "ALL" ? "TODAS AS BASES" : `a base ${cityToClose}`;
+      const confirmMsg =
+        `Encerrar ciclo de ${labelEscopo}?\n\n` +
+        `• ${enviados.length} item(ns) ENVIADO(S) serão removidos da lista ativa.\n` +
+        `• ${faltas.length} item(ns) em FALTA continuarão na lista como 'Pendente da Solicitação Anterior'.\n` +
+        `• ${programados.length} item(ns) EM X DIAS permanecerão acompanhados.`;
+
+      if (!confirm(confirmMsg)) return;
 
       if (state.useFirebase && state.db) {
         const batch = writeBatch(state.db);
-        baseItems.forEach(item => {
+        enviados.forEach(item => {
           const ref = doc(state.db, "abastecimento_bases_tl", "geral", "itens", item.id);
           batch.delete(ref);
         });
+        faltas.forEach(item => {
+          const ref = doc(state.db, "abastecimento_bases_tl", "geral", "itens", item.id);
+          batch.update(ref, {
+            status: "pendente",
+            pendenteAnterior: true,
+            dataPedidoAnterior: item.dataPedidoAnterior || item.dataPedido || "",
+            substituto: ""
+          });
+        });
         await batch.commit();
       } else {
-        state.items = state.items.filter(i => i.municipio !== state.selectedBase);
+        const enviadoIds = new Set(enviados.map(i => i.id));
+        const faltaIds = new Set(faltas.map(i => i.id));
+        state.items = state.items
+          .filter(i => !enviadoIds.has(i.id))
+          .map(i => {
+            if (faltaIds.has(i.id)) {
+              return {
+                ...i,
+                status: "pendente",
+                pendenteAnterior: true,
+                dataPedidoAnterior: i.dataPedidoAnterior || i.dataPedido || "",
+                substituto: ""
+              };
+            }
+            return i;
+          });
         saveLocal();
       }
-      showToast(`Lista enviada de ${state.selectedBase} limpa.`, "🧹");
+
+      showToast(
+        `Ciclo encerrado! ${enviados.length} enviados limpos e ${faltas.length} faltas mantidas como pendentes.`,
+        "🔄"
+      );
     };
 
     // =========================================================================
@@ -956,7 +1026,7 @@
       toast.classList.remove("translate-y-20", "opacity-0");
       setTimeout(() => {
         toast.classList.add("translate-y-20", "opacity-0");
-      }, 2800);
+      }, 3200);
     }
 
     // =========================================================================
@@ -975,12 +1045,18 @@
       return "";
     }
 
+    function getCarryOverBadge(item) {
+      if (!item.pendenteAnterior) return "";
+      const dateStr = item.dataPedidoAnterior ? ` (${item.dataPedidoAnterior})` : "";
+      return `<span class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-purple-100 text-purple-800 border border-purple-300 uppercase">⚠️ Pendente da Solicitação Anterior${dateStr}</span>`;
+    }
+
     function getStatusPillForBase(item) {
       if (item.status === "enviado") {
         return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">✅ Enviado (${item.qtdAtendida} ${item.unidadeAtendida})</span>`;
       }
       if (item.status === "falta") {
-        return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800">❌ Falta na Fábrica</span>`;
+        return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800">❌ Sem Estoque/Falta</span>`;
       }
       if (item.status === "programado") {
         return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">🕒 Em ${item.diasEnvio} dias (${item.qtdAtendida} ${item.unidadeAtendida})</span>`;
@@ -1004,7 +1080,7 @@
         listEl.innerHTML = `
           <div class="py-6 text-center text-slate-400">
             <p class="text-xs font-semibold text-slate-500">Seu rascunho está vazio.</p>
-            <p class="text-[11px] mt-0.5">Adicione os produtos acima e depois clique no botão verde para enviar.</p>
+            <p class="text-[11px] mt-0.5">Adicione apenas os novos produtos acima (faltas anteriores já estão listadas ao lado).</p>
           </div>
         `;
         return;
@@ -1036,7 +1112,11 @@
       document.getElementById("currentBaseTitle").textContent = state.selectedBase;
       renderDraftList();
 
-      const filtered = state.items.filter(i => i.municipio === state.selectedBase);
+      // Ordena colocando pendências da solicitação anterior no topo
+      const filtered = state.items
+        .filter(i => i.municipio === state.selectedBase)
+        .sort((a, b) => (b.pendenteAnterior ? 1 : 0) - (a.pendenteAnterior ? 1 : 0));
+
       document.getElementById("baseItemCount").textContent = `${filtered.length} ${filtered.length === 1 ? "item" : "itens"}`;
 
       const listEl = document.getElementById("baseItemsList");
@@ -1044,7 +1124,7 @@
         listEl.innerHTML = `
           <div class="py-16 text-center text-slate-400">
             <p class="text-3xl mb-2">📦</p>
-            <p class="text-sm font-semibold text-slate-600">Nenhum pedido enviado para ${state.selectedBase} ainda.</p>
+            <p class="text-sm font-semibold text-slate-600">Nenhum pedido ativo para ${state.selectedBase}.</p>
             <p class="text-xs mt-1">Monte sua lista no Rascunho Local ao lado e clique em Enviar Pedido.</p>
           </div>
         `;
@@ -1052,15 +1132,16 @@
       }
 
       listEl.innerHTML = filtered.map(item => `
-        <div class="py-3.5 px-2 flex flex-wrap items-center justify-between gap-3 hover:bg-slate-50/80 transition rounded-xl">
+        <div class="py-3.5 px-2.5 flex flex-wrap items-center justify-between gap-3 transition rounded-xl ${item.pendenteAnterior ? 'bg-purple-50/50 border border-purple-200/80 my-1' : 'hover:bg-slate-50/80'}">
           <div class="space-y-1">
-            <div class="flex items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2">
               <span class="font-bold text-sm text-slate-800">${item.produto}</span>
+              ${getCarryOverBadge(item)}
               ${getPriorityBadge(item.prioridade)}
             </div>
             <p class="text-xs text-slate-500">
               Pedido: <strong class="text-slate-700">${item.qtdSolicitada} ${item.unidade}</strong>
-              ${item.responsavel ? ` • <span class="text-slate-600">Por: <strong>${item.responsavel}</strong> (${item.horaEnvio || ''})</span>` : ""}
+              ${item.responsavel ? ` • <span class="text-slate-600">Por: <strong>${item.responsavel}</strong> (${item.dataPedido ? `${item.dataPedido} ` : ''}${item.horaEnvio || ''})</span>` : ""}
               ${item.substituto ? ` • <span class="text-indigo-600 font-semibold">Troca: ${item.substituto}</span>` : ""}
             </p>
           </div>
@@ -1094,7 +1175,11 @@
       });
       filtersEl.innerHTML = pillsHtml;
 
-      document.getElementById("kpi-pendente").textContent = state.items.filter(i => i.status === "pendente").length;
+      const pendentesList = state.items.filter(i => i.status === "pendente");
+      const anterioresCount = pendentesList.filter(i => i.pendenteAnterior).length;
+
+      document.getElementById("kpi-pendente").textContent = pendentesList.length;
+      document.getElementById("kpi-anterior-sub").textContent = `${anterioresCount} de pedido anterior`;
       document.getElementById("kpi-enviado").textContent = state.items.filter(i => i.status === "enviado").length;
       document.getElementById("kpi-falta").textContent = state.items.filter(i => i.status === "falta").length;
       document.getElementById("kpi-programado").textContent = state.items.filter(i => i.status === "programado").length;
@@ -1102,12 +1187,24 @@
       const search = document.getElementById("analystSearchInput").value.toLowerCase().trim();
       const statusFilter = document.getElementById("analystStatusFilter").value;
 
-      const filtered = state.items.filter(item => {
-        if (state.analystCityFilter !== "ALL" && item.municipio !== state.analystCityFilter) return false;
-        if (statusFilter !== "all" && item.status !== statusFilter) return false;
-        if (search && !item.produto.toLowerCase().includes(search) && !item.municipio.toLowerCase().includes(search) && !(item.responsavel || "").toLowerCase().includes(search)) return false;
-        return true;
-      });
+      const filtered = state.items
+        .filter(item => {
+          if (state.analystCityFilter !== "ALL" && item.municipio !== state.analystCityFilter) return false;
+          if (statusFilter === "anterior") {
+            if (!item.pendenteAnterior || item.status !== "pendente") return false;
+          } else if (statusFilter !== "all" && item.status !== statusFilter) {
+            return false;
+          }
+          if (search && !item.produto.toLowerCase().includes(search) && !item.municipio.toLowerCase().includes(search) && !(item.responsavel || "").toLowerCase().includes(search)) return false;
+          return true;
+        })
+        // Prioriza itens pendentes da solicitação anterior no topo
+        .sort((a, b) => {
+          const aPri = (a.pendenteAnterior && a.status === "pendente") ? 1 : 0;
+          const bPri = (b.pendenteAnterior && b.status === "pendente") ? 1 : 0;
+          if (bPri !== aPri) return bPri - aPri;
+          return (a.createdAt || 0) - (b.createdAt || 0);
+        });
 
       const container = document.getElementById("analystItemsContainer");
       if (filtered.length === 0) {
@@ -1124,8 +1221,10 @@
         const isEnviado = item.status === "enviado";
         const isFalta = item.status === "falta";
         const isProg = item.status === "programado";
+        const isCarryOverPending = item.pendenteAnterior && item.status === "pendente";
 
         let borderClass = "border-slate-200";
+        if (isCarryOverPending) borderClass = "border-purple-400 bg-purple-50/35 ring-1 ring-purple-200";
         if (isEnviado) borderClass = "border-emerald-300 bg-emerald-50/20";
         if (isFalta) borderClass = "border-rose-300 bg-rose-50/20";
         if (isProg) borderClass = "border-amber-300 bg-amber-50/20";
@@ -1142,11 +1241,12 @@
                 <div>
                   <div class="flex flex-wrap items-center gap-2">
                     <h4 class="font-bold text-sm sm:text-base text-slate-900">${item.produto}</h4>
+                    ${getCarryOverBadge(item)}
                     ${getPriorityBadge(item.prioridade)}
                   </div>
                   <p class="text-xs text-slate-500 mt-0.5">
                     Solicitado: <strong class="text-slate-700">${item.qtdSolicitada} ${item.unidade}</strong>
-                    ${item.responsavel ? ` • <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-semibold">👤 ${item.responsavel} ${item.horaEnvio ? `às ${item.horaEnvio}` : ''}</span>` : ""}
+                    ${item.responsavel ? ` • <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-semibold">👤 ${item.responsavel} ${item.dataPedido ? `em ${item.dataPedido}` : ''} ${item.horaEnvio ? `às ${item.horaEnvio}` : ''}</span>` : ""}
                   </p>
                 </div>
               </div>
@@ -1276,7 +1376,10 @@
                   <ul class="space-y-2">
                     ${cEnviados.map(i => `
                       <li class="bg-white p-2.5 rounded-xl border border-emerald-200/80 shadow-xs flex items-center justify-between gap-2">
-                        <span class="text-xs sm:text-sm font-bold text-slate-800">${i.produto}</span>
+                        <div class="min-w-0">
+                          <span class="text-xs sm:text-sm font-bold text-slate-800 block truncate">${i.produto}</span>
+                          ${i.pendenteAnterior ? `<span class="text-[10px] font-bold text-purple-700">🔁 Pend. anterior</span>` : ''}
+                        </div>
                         <span class="px-2 py-0.5 rounded-lg bg-emerald-600 text-white text-xs font-extrabold shrink-0">
                           ${i.qtdAtendida} ${i.unidadeAtendida}
                         </span>
@@ -1302,6 +1405,7 @@
                           <span class="text-xs sm:text-sm font-bold text-slate-800">${i.produto}</span>
                           <span class="text-[11px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 shrink-0">Ruptura</span>
                         </div>
+                        ${i.pendenteAnterior ? `<p class="text-[10px] font-bold text-purple-700">🔁 Reincidente (pedido anterior)</p>` : ''}
                         ${i.substituto ? `
                           <p class="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-1 rounded-lg">
                             🔄 Troca: ${i.substituto}
